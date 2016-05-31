@@ -68,4 +68,4 @@ def spectralClustering(features,similarity_method='exp',k_nn=5,basis_dim=2,num_c
 	U,s,V = np.linalg.svd(L,full_matrices=0)
 	U = U[:,-1*basis_dim:]
 	labels, centers = kplusplus(U.T,num_clusters)
-	return labels, centers
+	return labels, centers, U 

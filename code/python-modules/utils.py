@@ -4,7 +4,7 @@ use: contains functions associated with general functionality that are not uniqu
 '''
 
 import numpy as np
-from scipy.stats import mode
+from scipy.stats import mode #this isnt actually used i think
 
 def getDifferenceArray(vector): 
 	'''
@@ -126,21 +126,6 @@ def runningAvg(vector,N):
 	'''
 	return np.convolve(vector, np.ones(N,)/(N*1.0))[(N-1):]
 
-def majorityVote(vector,N):
-	'''
-	Purpose: 
-	Perform majorityVote for current element of vector based on adjacent N elements 
-
-	Inputs: 
-	vector - 1 dimensional array 
-	N - number of elements to majorityVote over 
-
-	Outputs: 
-	vector of same size as original vector 
-
-	'''
-	return
-
 def orderStates(vector): 
 	'''
 	Purpose: 
@@ -164,10 +149,6 @@ def orderStates(vector):
 			ordered_vector.append(order_hold.index(elt))
 
 	return ordered_vector
-
-
-
-
 
 def generateData(N,form='bull',dim=2):
     '''
@@ -238,3 +219,4 @@ def generateData(N,form='bull',dim=2):
     			y[i] = -1
     	y.shape = (N,)
        	return X,y
+

@@ -1,13 +1,17 @@
 import kinectData
 import clusters
+import assign
 import visualize
 import utils
 import numpy as np
 import matplotlib.pyplot as plt
+import handover_tools as ht 
+
 
 def setup(user_id='4', file_name=''): 
 	data = kinectData.kinectData(user_id) #set up kinectData object with user_id 
-
+	if file_name == '':
+		file_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p2/p2-logs/p2-3.txt'
 	data.addData(file_name)
 	print data.names_list, '\n shape: ', data.data_array.shape  #correct shape checked
 
@@ -21,9 +25,9 @@ def label(data_object, feature_range=[1000,1650], num_clusters=4, basis_dim=2, k
 
 	input_data = data_object.feat_array[feature_range[0]:feature_range[1],:]
 
-	labels, centers = clusters.spectralClustering(input_data, data_object.similarity_method, k_nn, basis_dim, num_clusters)
+	labels, centers, U = clusters.spectralClustering(input_data, data_object.similarity_method, k_nn, basis_dim, num_clusters)
 	labels = utils.orderStates(labels)
-	labels = np.floor(utils.runningAvg(labels,5))
+	#labels = np.floor(utils.runningAvg(labels,1))
 	labels = [int(x) for x in labels]
 	labels = list(labels)
 
@@ -44,7 +48,7 @@ def label(data_object, feature_range=[1000,1650], num_clusters=4, basis_dim=2, k
 
 	print 'norm val: ', data_object.norm_value
 	print 'frames: ', feature_range[0] ,'to ', feature_range[1]
-	return labels, centers
+	return labels, centers, U
 
 def video(name_list,raw_data,labels):
 	label_labels = ['Receive object', 'Mid-1', 'Mid-2', 'Place object','','']
@@ -56,11 +60,16 @@ def video(name_list,raw_data,labels):
 	plt.show()
 
 
-
 def main(): 
 	file_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p2/p2-logs/p2-3.txt'
-	data = setup('4',file_name)
-	labels, centers = label(data)
-	return data,labels,centers
+	data4 = setup('4',file_name)
+	data5 = setup('5',file_name)
+	handover_starts = ht.handoverID(data4,data5)
+	l0, c0, U0  = label(data4, feature_range=[handover_starts[0],handover_starts[1]],num_clusters=3)
+	l1, c1, U1  = label(data4, feature_range=[handover_starts[1],handover_starts[2]],num_clusters=3)
+	l2, c2, U2  = label(data4, feature_range=[handover_starts[2],handover_starts[3]],num_clusters=3)
+
+
+	return data4,data5,handover_starts, l0,U0, l1,U1, l2,U2 
 
 if __name__ == '__main__': main()

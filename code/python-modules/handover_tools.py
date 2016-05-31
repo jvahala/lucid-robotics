@@ -13,12 +13,11 @@ def handoverID(user1, user2):
 	user2 - kinectData class of object for user2
 
 	Outputs:
-	start_frames - list of frame numbers associated with handover starts 
+	handover_starts - list of frame numbers associated with handover starts 
 
 	'''
 
 	#get features associated with hand positions 
-
 	joint_left = 'HandLeft'
 	left1 = getIndivJoint(user1,joint_left)
 	left2 = getIndivJoint(user2,joint_left)
@@ -32,95 +31,163 @@ def handoverID(user1, user2):
 	lr = getJointDifference(left1,right2)
 	rl = getJointDifference(right1,left2)
 	rr = getJointDifference(right1,right2)
-	N = 5
+	N = 10
 	ll = utils.runningAvg(ll,N)
 	lr = utils.runningAvg(lr,N)
 	rl = utils.runningAvg(rl,N)
 	rr = utils.runningAvg(rr,N)
 
-	#compute velocites of | hand1 - hand2 |, smallest velocities should be associated with extreme points 
-	llvel = ll[0:-1]-ll[1:]
-	lrvel = lr[0:-1]-lr[1:]
-	rlvel = rl[0:-1]-rl[1:]
-	rrvel = rr[0:-1]-rr[1:]
-	N = 5
-	llvel = utils.runningAvg(llvel,N)
-	lrvel = utils.runningAvg(lrvel,N)
-	rlvel = utils.runningAvg(rlvel,N)
-	rrvel = utils.runningAvg(rrvel,N)
+	#compute velocites and accelerations
 
-	llacc = llvel[0:-1]-llvel[1:]
-	lracc = lrvel[0:-1]-lrvel[1:]
-	rlacc = rlvel[0:-1]-rlvel[1:]
-	rracc = rrvel[0:-1]-rrvel[1:]
-	N = 5
-	llacc = utils.runningAvg(llacc,N)
-	lracc = utils.runningAvg(lracc,N)
-	rlacc = utils.runningAvg(rlacc,N)
-	rracc = utils.runningAvg(rracc,N)
+	llvel, llacc = handoverSpeed(ll,N)
+	lrvel, lracc = handoverSpeed(lr,N)
+	rlvel, rlacc = handoverSpeed(rl,N)
+	rrvel, rracc = handoverSpeed(rr,N)
 
-	llsplit = np.logical_and(ll[0:-1] < 0.35,np.abs(llvel)<0.01)
-	lrsplit = np.logical_and(lr[0:-1] < 0.35,np.abs(lrvel)<0.01)
-	rlsplit = np.logical_and(rl[0:-1] < 0.35,np.abs(rlvel)<0.01)
-	rrsplit = np.logical_and(rr[0:-1] < 0.35,np.abs(rrvel)<0.01)
+	#determine probable areas for handover splits using thresholds and a version of gradient descent to find handtohand distance minimums
+	min_dist = 0.4	#meters
+	min_vel = 0.5	#meters/sec
+	llsplit = np.logical_and(ll[0:-1] < min_dist, np.abs(llvel)<min_vel)
+	lrsplit = np.logical_and(lr[0:-1] < min_dist, np.abs(lrvel)<min_vel)
+	rlsplit = np.logical_and(rl[0:-1] < min_dist, np.abs(rlvel)<min_vel)
+	rrsplit = np.logical_and(rr[0:-1] < min_dist, np.abs(rrvel)<min_vel)
 	
-
 	ll_inds = [ind for ind,x in enumerate(llsplit) if x==True]
-	ll_inds = groupLikeIndex(ll_inds)
+	ll_inds = groupLikeIndex(ll_inds,len(llacc))
+	ll_inds = [minDistIndex(x,ll) for x in ll_inds]
 
 	lr_inds = [ind for ind,x in enumerate(lrsplit) if x==True]
-	lr_inds = groupLikeIndex(lr_inds)
+	lr_inds = groupLikeIndex(lr_inds,len(lracc))
+	lr_inds = [minDistIndex(x,lr) for x in lr_inds]
 
 	rl_inds = [ind for ind,x in enumerate(rlsplit) if x==True]
-	rl_inds = groupLikeIndex(rl_inds)
+	rl_inds = groupLikeIndex(rl_inds,len(rlacc))
+	rl_inds = [minDistIndex(x,rl) for x in rl_inds]
 
 	rr_inds = [ind for ind,x in enumerate(rrsplit) if x==True]
-	rr_inds = groupLikeIndex(rr_inds)
+	rr_inds = groupLikeIndex(rr_inds,len(rracc))
+	rr_inds = [minDistIndex(x,rr) for x in rr_inds]
+
+	handover_starts = ll_inds+lr_inds+rl_inds+rr_inds
 	
-	print 'll: ', ll_inds 
-	print 'lr: ', lr_inds 
-	print 'rl: ', rl_inds 
-	print 'rr: ', rr_inds 
-
-
-
-	plt.subplot(3,1,1)
-	plt.plot(np.arange(len(llvel)),ll[0:-1],color='r')
-	plt.plot(np.arange(len(lrvel)), lr[0:-1], color='b')
-	plt.plot(np.arange(len(rlvel)),rl[0:-1],color='g')
-	plt.plot(np.arange(len(rrvel)), rr[0:-1], color='y')
+	#print 'starts', handover_starts
+	'''
+	#plot results
+	plt.figure(1)
+	plotHandoverInfo(ll,llvel,llacc,ll_inds,color_str='r')
+	plotHandoverInfo(lr,lrvel,lracc,lr_inds,color_str='b')
+	plotHandoverInfo(rl,rlvel,rlacc,rl_inds,color_str='g')
+	plotHandoverInfo(rr,rrvel,rracc,rr_inds,color_str='y')
 	plt.legend(['left left','left right', 'right left', 'right right'])
-	plt.ylabel('distance')
-	plt.axis([180,700,0,2])
-	
-	plt.subplot(3,1,2)
-	plt.plot(np.arange(len(llvel)),llvel,color='r')
-	plt.plot(np.arange(len(lrvel)), lrvel, color='b')
-	plt.plot(np.arange(len(rlvel)),rlvel,color='g')
-	plt.plot(np.arange(len(rrvel)), rrvel, color='y')
-	plt.plot(np.arange(len(rrvel)),np.zeros((len(rrvel),1)),color='k')
-	plt.ylabel('velocity')
-	plt.axis([180,700,np.amin(llvel),np.amax(llvel)])
-
-	plt.subplot(3,1,3)
-	plt.plot(np.arange(len(llacc)),llacc,color='r')
-	plt.plot(np.arange(len(lracc)), lracc, color='b')
-	plt.plot(np.arange(len(rlacc)),rlacc,color='g')
-	plt.plot(np.arange(len(rracc)), rracc, color='y')
-	plt.plot(np.arange(len(rracc)), np.zeros((len(rracc),1)),color='k')
-	plt.ylabel('acceleration')
-	plt.axis([180,700,np.amin(llacc),np.amax(llacc)])
-
 	plt.show()
+	'''
+	return handover_starts
 
+def groupLikeIndex(ind_list, max_ind):
+	'''
+	Purpose: 
+	Takes input of a list of indices and turns them into a sparse set of indices where no 2 are very close
 
-def groupLikeIndex(ind_list):
+	Inputs: 
+	ind_list - list of indices 
+	max_ind - maximum int value allowed for any single index
+	
+	Outputs: 
+	grouped - sparse set of indices
+	'''
 	temp = ind_list
 	grouped = [x for ind,x in enumerate(ind_list) if (np.abs(x-temp[ind-1])>20 or ind==0)]
+	if len(grouped)>0 and grouped[-1] >= max_ind:
+		return grouped[0:-1]
 	return grouped
 
+def plotHandoverInfo(handtohand,handvel,handacc,hand_inds,color_str):
+	'''
+	Purpose: 
+	plots in a 3 by 1 subplot the distance, velocity, acceleration, and key indices for the handtohand difference between users
 
+	Inputs: 
+	handtohand -  ndarray, ||(hand1-hand2)||_2 
+	handvel - ndarray, velocity of handtohand 
+	handacc - ndarray, acceleration of handtohand
+	hand_inds - indices defined to be the potential handover start locations
+	color_str - color to make the plot markings, ie 'red' or 'k' 
+	
+	Outputs: 
+	plot, must call legend outside of plot. 
+	'''
 
+	spf = 0.030 		#seconds per frame
+	plt.subplot(3,1,1)
+	plt.plot(spf*np.arange(len(handvel)),handtohand[0:-1],color=color_str)
+	plt.plot(spf*np.array(hand_inds),handtohand[hand_inds],linestyle='None',marker='x',color=color_str,label='_nolegend_')
+	plt.ylabel('distance (m)')
+	plt.title('giver-to-receiver hand-to-hand stats')
+	plt.subplot(3,1,2)
+	plt.plot(spf*np.arange(len(handvel)),handvel,color=color_str)
+	plt.plot(spf*np.arange(len(handvel)),np.zeros((len(handvel),1)),color='k',label='_nolegend_')
+	plt.plot(spf*np.array(hand_inds),handvel[hand_inds],linestyle='None',marker='x',color=color_str,label='_nolegend_')
+	plt.ylabel('velocity (m/s)')
+	plt.subplot(3,1,3)
+	plt.plot(spf*np.arange(len(handacc)),handacc,color=color_str)
+	plt.plot(spf*np.arange(len(handacc)),np.zeros((len(handacc),1)),color='k',label='_nolegend_')
+	plt.plot(spf*np.array(hand_inds),handacc[hand_inds],linestyle='None',marker='x',color=color_str,label='_nolegend_')
+	plt.ylabel('acceleration (m/s/s)')
+	plt.xlabel('time (s)')
+
+def minDistIndex(curr_ind, handtohand):
+	'''
+	Purpose: 
+	performs gradient descent (kind of) to find the true minimum around some guessed minimum current index of handtohand
+
+	Inputs: 
+	curr_ind - current guess at the index of a local minimum of handtohand
+	handtohand - values indexed within the range of curr_ind (having a running average in the process to make this is recommended)
+	
+	Outputs: 
+	curr_ind - updated curr_ind that is now at the nearest local minimum 
+	'''
+	if (curr_ind+3) >(len(handtohand)-1) or curr_ind-3 < 0:
+		return curr_ind
+	else: 
+		higher = handtohand[curr_ind+3]
+		lower = handtohand[curr_ind-3] 
+	if higher < lower:
+		multi = 1
+	else: 
+		multi = -1
+	while higher < handtohand[curr_ind] or lower < handtohand[curr_ind]:
+		#if the higher indexed version is smaller, then shift curr_ind to toward that direction until it gets larger
+		if (curr_ind + multi*3 > len(handtohand)-1) or (curr_ind + multi*3 < 0) :
+			return curr_ind
+		else:
+			curr_ind += multi*3
+			higher = handtohand[curr_ind+multi*3]
+	return curr_ind
+
+def handoverSpeed(handtohand,N):
+	'''
+	Purpose: 
+	returns handtohand velocity and acceleration each averaged with an N point convolution filter
+
+	Inputs: 
+	handtohand - ||(hand1-hand2)||_2 
+	N - number of frames to do running avg over
+	
+
+	Outputs: 
+	handvel = N-averaged velocity of handtohand distance measure
+	handacc = N-averged acceleration of handtohand distance measure
+	'''
+	spf = 0.030 #seconds per frame
+
+	handvel = handtohand[0:-1]-handtohand[1:]
+	handvel = 1/spf*utils.runningAvg(handvel,N)
+
+	handacc = handvel[0:-1]-handvel[1:]
+	handacc = 1/spf*utils.runningAvg(handacc,N)
+
+	return handvel,handacc
 
 def getIndivJoint(user, joint_name):
 	'''
@@ -140,7 +207,6 @@ def getIndivJoint(user, joint_name):
 	jointxyz = user.dataXYZ[:,joint_index,:]
 	return jointxyz 
 
-
 def getJointDifference(jointxyz1, jointxyz2):
 	'''
 	Purpose: 
@@ -157,5 +223,4 @@ def getJointDifference(jointxyz1, jointxyz2):
 	'''
 	jointdiff = np.linalg.norm(jointxyz1 - jointxyz2, axis=1)
 	return jointdiff
-
 
