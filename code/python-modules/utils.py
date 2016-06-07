@@ -126,6 +126,128 @@ def runningAvg(vector,N):
 	'''
 	return np.convolve(vector, np.ones(N,)/(N*1.0))[(N-1):]
 
+class Subspace(object):
+	def __init__(self,U): 
+		self.U = U 				#U is orthogonal subspace ndarray object n by p
+		self.n = U.shape[0]		#number of elements in the subspace
+		self.p = U.shape[1]		#number of features in subspace
+
+	def projectOnMe(self,X):
+		#project a different subspace Y (m by r, m and r possible not equal to n and p) onto the space spaned by self.U
+		def extendX(X):
+			#inds = np.array([added_ind1, added_ind2, added_ind3, ...]) int between {1,2,...,max_ind-1}
+			#X is too small to be projected on U, so need to add additional points
+			if len(X) > self.n: #check you didn't use the wrong function (should be done for you already though )
+				print 'whoops, extendX() is not for you'
+				return
+			else: 
+				num_add = self.n-len(X)
+				print 'adding ', num_add, ' elements'
+				interps = np.random.randint(len(X)-1, size=num_add)	#select interpolation indices at the halfway points ]along the elements of the basis {0.5,1.5,2.5...,max_ind-0.5}
+				interps = interps.astype('float64') 
+				interps += 0.5
+				
+				interps = np.sort(interps)
+				ceil_interps = np.ceil(interps)
+				Xnew = np.ones((len(X)+num_add,1))
+				for col in X.T: 					#for each column of X, interpolate
+					value_add = np.interp(interps,np.arange(len(col)),col)
+					col = np.insert(col,ceil_interps,value_add)
+					col99 = np.insert(col,ceil_interps,np.ones(len(ceil_interps))*-99) #fills in added entries with -99
+					inds = np.where(col99==-99)		#inds which will be removed later
+					Xnew = np.hstack((Xnew,col.reshape(len(col),1)))
+				X = Xnew[:,1:]	#ignore first column
+			return X, inds
+
+		def contractX(X):
+			#X is too large to be projected on U, so need to remove points
+			#inds = np.array([added_ind1, added_ind2, added_ind3, ...])
+			if len(X) < self.n: 
+				print 'whoops, contractX() is not for you'
+				return
+			else: 
+				num_remove = len(X) - self.n
+				print 'removing ', num_remove, ' elements'
+				removes = np.random.choice(len(X)-2,size=num_remove,replace=False)+1	#select from {1,2,...max_ind-1} without replacement
+				removes = np.sort(removes)
+				inds = np.empty_like(removes)
+				for i,r in enumerate(removes): 
+					inds[i] = r-1-i 	#index after which to place the new element when adding them back for interpolation
+				Xnew = np.ones((len(X)-num_remove,1))
+				for col in X.T:
+					col = np.delete(col,removes,axis=0)
+					Xnew = np.hstack((Xnew,col.reshape(len(col),1)))
+				X = Xnew[:,1:]
+			return X, inds
+
+		def resolveProjection(Z,inds,status): 
+			if status == 0: 
+				print 'status is go'
+				return Z
+			elif status == +1: 
+				print 'removing uncessary dumb additions'
+				#remove unnecessary added rows from Z 
+				Z = np.delete(Z,inds,axis=0)
+				return Z
+			elif status == -1: 
+				#add necessary removed points to Z 
+				print 'adding the important addtions back'
+				interps = inds + 0.5
+				Znew = np.ones((len(Z)+len(inds),1))
+				for col in Z.T: 
+					values = np.interp(inds+0.5, np.arange(len(col)), col) 
+					col = np.insert(col,np.ceil(interps),values)
+					Znew = np.hstack((Znew,col.reshape(len(col),1)))
+				Z = Znew[:,1:]
+				return Z
+
+		status = 0						#default that self.U and X are the same length
+		inds = []
+		if len(X) < self.n: 
+			print 'extending'
+			X,inds = extendX(X)
+			status = +1					#indices have been added, will need to remove these from the projection later
+		elif len(X) > self.n: 
+			print 'contracting'
+			X,inds = contractX(X)
+			status = -1					#indices have been removed, will need to interpolate in projection later
+		Z = projectToSubspace(X,self.U)
+		Z = resolveProjection(Z,inds,status)
+		return Z
+
+
+def projectToSubspace(X,Y): 
+	'''
+	Purpose: 
+	Embeds a set of features X (in R^(n by k)) onto a reduced dimension subspace Y (in R^(n by r)), r < k, via least squares approximation, Z = Xw where w = inv(X'X)X'Y
+
+	Inputs: 
+	X - n by k feature array (ndarray type)
+	Y - n by r feature array, (r<k, ndarray type)
+
+	Outputs: 
+	Z - n by r ndarray subspace projection of X onto Y
+
+	'''
+	w = np.linalg.lstsq(X,Y) 
+	Z = X.dot(w[0])
+	return Z 
+
+def matchLengths(X,Y):
+	'''
+	Purpose: 
+	Via interpolation or 
+
+	Inputs: 
+	X - n by k feature array (ndarray type)
+	Y - n by r feature array, (r<k, ndarray type)
+
+	Outputs: 
+	Z - n by r ndarray subspace projection of X onto Y
+
+	'''
+	return ''
+
 def orderStates(vector): 
 	'''
 	Purpose: 
@@ -220,3 +342,6 @@ def generateData(N,form='bull',dim=2):
     	y.shape = (N,)
        	return X,y
 
+X = np.random.randint(5,size=(100,8))
+Y = np.random.randint(2,size=(100,2))
+Z = projectToSubspace(X,Y)

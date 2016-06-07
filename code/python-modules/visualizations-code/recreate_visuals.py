@@ -1,6 +1,8 @@
-import test
-import handover_tools as ht
-import utils
+import ../test
+import ../handover_tools as ht
+import ../utils
+import ../assign
+import matplotlib.pyplot as plt 
 
 def handToHandStats():
 	user1 = '4'
@@ -70,3 +72,112 @@ def handToHandStats():
 
 
 	plt.show()
+
+def basisPlot1d(): 
+	file_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p2/p2-logs/p2-3.txt'
+	data4 = test.setup('4',file_name)
+	data5 = test.setup('5',file_name)
+	handover_starts = ht.handoverID(data4,data5)
+	l0, c0, U0  = test.label(data4, feature_range=[handover_starts[0],handover_starts[1]],num_clusters=3)
+	l1, c1, U1  = test.label(data4, feature_range=[handover_starts[1],handover_starts[2]],num_clusters=3)
+	l2, c2, U2  = test.label(data4, feature_range=[handover_starts[2],handover_starts[3]],num_clusters=3)
+	
+	u0 = U0[:,0]
+	u1 = U1[:,0]
+	u2 = U2[:,0]
+	u0 = assign.stretchBasisCol(u0)
+	u1 = assign.stretchBasisCol(u1)
+	u2 = assign.stretchBasisCol(u2)
+
+	u00 = utils.runningAvg(u0,5)
+	u11 = utils.runningAvg(u1,5)
+	u22 = utils.runningAvg(u2,5)
+
+	l0 = [l+1 if l<2 else 0 for l in l0] 
+
+	plt.figure(1)
+	assign.plotClassPoints(u0,l0)
+	assign.plotClassPoints(u1,l1)
+	assign.plotClassPoints(u2,l2)
+	
+	plt.figure(2)
+	assign.plotClassPoints(u00,l0)
+	assign.plotClassPoints(u11,l1)
+	assign.plotClassPoints(u22,l2)
+	plt.title('with 5-point runningAvg')
+
+	plt.show()
+
+def _3dStateDists():
+
+	file_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p2/p2-logs/p2-3.txt'
+	data4 = test.setup('4',file_name)
+	data5 = test.setup('5',file_name)
+
+	handover_starts = ht.handoverID(data4,data5)
+	l0, c0, U0  = test.label(data4, feature_range=[handover_starts[0],handover_starts[1]],num_clusters=3)
+	l0 = [l+1 if l<2 else 0 for l in l0] 
+	u0 = U0[:,0]
+	
+	u0 = assign.stretchBasisCol(u0)
+	g0 = assign.getClassDists(u0,l0)
+
+	g0split,counts = assign.splitStates(g0,u0,thresh_mult=1.5)
+	counts0 = counts[0:3]
+
+	#3state-dists
+	plt.figure(1)
+	ass.plotClassDists(g0,counts0)
+	plt.yticks([])
+	plt.xlabel('basis value')
+	plt.ylabel('probability measure')
+	plt.title('Proportional 3-state Distributions')
+
+	#3state-dists-added
+	plt.figure(2)
+	ass.plotClassDists(g0split,counts)
+	plt.yticks([])
+	plt.xlabel('basis value')
+	plt.ylabel('probability measure')
+	plt.title('Proportional Added-state Distributions')
+
+	plt.show()
+
+
+def OneBasisThreeHandover(): 
+
+	file_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p2/p2-logs/p2-3.txt'
+	data4 = test.setup('4',file_name)
+	data5 = test.setup('5',file_name)
+	handover_starts = ht.handoverID(data4,data5)
+	l0, c0, U0  = test.label(data4, feature_range=[handover_starts[0],handover_starts[1]],num_clusters=3)
+
+	U1e = test.embed(data4,U0,feature_range=[handover_starts[1],handover_starts[2]])
+	U2e = test.embed(data4,U0,feature_range=[handover_starts[2],handover_starts[3]])
+
+	from ../kmeans import kplusplus
+
+	l1 = kplusplus(U1e.T,k=3)
+	l2 = kplusplus(U2e.T,k=3)
+
+	l1 = utils.orderStates(l1)
+	l2 = utils.orderStates(l2)
+	
+	u0 = U0e[:,0]
+	u1 = U1e[:,0]
+	u2 = U2e[:,0]
+	u0 = assign.stretchBasisCol(u0)
+	u1 = assign.stretchBasisCol(u1)
+	u2 = assign.stretchBasisCol(u2)
+
+	plt.figure(1)
+	assign.plotClassPoints(u0,l0)
+	assign.plotClassPoints(u1,l1)
+	assign.plotClassPoints(u2,l2)
+	plt.title('new method (basis projection)')
+
+	plt.show()
+
+
+
+

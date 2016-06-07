@@ -40,7 +40,6 @@ def getClassDists(vector,labels):
 		gaussians[i,:] = np.array(makeGuassian(curr_class))
 	return gaussians
 
-
 def getNumClasses(labels):
 	'''
 	Purpose: 
@@ -72,6 +71,7 @@ def splitStates(gaussians, vector, thresh_mult=1):
 	new_labels = -1*np.ones(len(vector))
 	num_classes = gaussians.shape[0]
 	gaussians = gaussians[gaussians[:,0].argsort()]		#sort the gaussians by mean [most negative to least negative mean]
+	print new_labels
 	for dist_num,dist in enumerate(gaussians): 
 		for ind,elt in enumerate(vector): 
 			diff = elt-dist[0]
@@ -80,7 +80,11 @@ def splitStates(gaussians, vector, thresh_mult=1):
 			elif np.sign(diff)==1: 		#if elt is right of the current distribution mean 
 				new_labels[ind] -= 1	# [ (-1) 0 (-2) 1 (-3) 2 (-4) 3 (-5) ...] where (-k) is a class label denoting the point to be inbetween true classes
 	#rename states to be >= 0 (-1->0, (-1-k)->numclasses+k-1, minind (negative)->numclasses-1)
-	new_labels = [0 if x==-1 else num_classes-1 if x==-1*(num_classes+1) else (np.sign(x)*x+gaussians.shape[0]-2) if x<0 else x for x in new_labels]
+	new_labels = [int(x) for x in new_labels]
+	print new_labels
+	#-2 -> max_class+1, -3->max_class+2, -4->max_class+3
+	new_labels = [int(0) if x==-1 else int(num_classes-1) if x==-1*(num_classes+1) else int(num_classes+(-2-x)) if x<-1 else int(x) for x in new_labels]
+	print num_classes,new_labels
 	num_classes = getNumClasses(new_labels)
 	new_gaussians = getClassDists(vector,new_labels)
 	counts = [np.sum(new_labels==x) for x in np.arange(num_classes)]
@@ -94,6 +98,16 @@ def splitStates(gaussians, vector, thresh_mult=1):
 	plotClassDists(new_gaussians,counts)'''
 
 	return new_gaussians, counts
+
+def stretchBasisCol(basis_col): 
+	maxpos = np.amax(basis_col)
+	maxneg = np.abs(np.amin(basis_col))
+	for i,u in enumerate(basis_col):
+		if u >= 0: 
+			basis_col[i] = u/maxpos
+		else: 
+			basis_col[i] = u/maxneg
+	return basis_col 
 
 def plotClassDists(gaussians,multiplier):
 	'''
@@ -112,12 +126,11 @@ def plotClassDists(gaussians,multiplier):
 	x = np.linspace(-2,2,100)
 	for dist_num,dist in enumerate(gaussians): 
 		plt.plot(x,multiplier[dist_num]/(1.0*sum(multiplier))*mlab.normpdf(x,dist[0],dist[1]))
-	plt.show()
 
 def plotClassPoints(basis,labels):
 	import matplotlib.pyplot as plt 
 	num_classes = getNumClasses(labels)
-	'''plt.figure(1)
+	'''plt.figure(1)t
 	for state in np.arange(num_classes):
 		plt.plot(basis[labels==state,0]/np.amax(np.abs(basis[:,0])),basis[labels==state,1]/np.amax(np.abs(basis[:,1])),marker='x',linestyle='None')
 	plt.xlabel('basis 1')
@@ -125,13 +138,12 @@ def plotClassPoints(basis,labels):
 	plt.legend(['class '+str(state) for state in np.arange(num_classes)])
 	plt.axis([-1.1,1.1,0.5,1.5])'''
 
-	plt.figure(2) 
 	color_options = ['r','g','b','y','m','k']
-	normalizer = np.amax(np.abs(basis[:,0]))
 	time_scalar = 100/(1.0*len(labels))
+	plt.plot(np.arange(len(labels))*time_scalar, basis-0.05,linestyle='-',marker='None',color='0.75')
 	for i,x in enumerate(labels): 
 		curr_col = color_options[x]
-		plt.plot(i*time_scalar,basis[i,0]/normalizer,marker='x',color=curr_col)
+		plt.plot(i*time_scalar,basis[i],marker='x',color=curr_col)
 	'''counts = [np.sum(labels==x) for x in np.arange(num_classes)]
 	start = 0
 	for state in np.arange(num_classes):
@@ -139,9 +151,30 @@ def plotClassPoints(basis,labels):
 		x=np.arange(start,start+counts[state])
 		plt.plot(x, basis[labels==state,0]/np.amax(np.abs(basis[:,0])),marker='x',linestyle='None')
 		start = end'''
-	plt.xlabel('index')
+	plt.xlabel('scaled index')
 	plt.ylabel('basis 1 value')
-	plt.legend(['class '+str(state) for state in np.arange(num_classes)])
 	plt.axis([0,100,-1.1,1.1])
 
+def updateClasses(prev_vector,prev_labels,vector,labels,thresh_mult=1,thresh_prop=0.2,min_classes=3): 
+	'''
+	Purpose: 
+	updates currently defined classes to refine state descriptions
+	Class addition: if currently in 3 classes, will find the distribution of the three classes within (thresh_mult*std_of_guassian) then define new classes inbetween the old classes. If those new class points represent some strong proportion (thresh_prop) of the total number of classes, then the new classes will be added as unique to the min_classes classes that have the strongest representation. 
+	Class distribution update: Points with the strongest probabilities based on hypothesis testing between classes (normal distributions scaled by the percentage of points within that class) are redistributed to each class to define new class distributions. These distributions are then returned with the new concatenated vector and labels. 
 
+	Inputs: 
+	prev_vector - 
+	prev_labels - 
+	vector - 
+	labels - PROBABLY NOT NECESSARY
+	thresh_mult - see splitStates() for description (describes what consitutes a unique state)
+	thresh_prop - in (0,1], percentage of all points that are within a unique state. If proportion is greater than this threshold, then it is accepted as a unique state
+	min_classes - in {1,2,...,(2*num_states-1)} where num_states is the number of unique states at the start of the function call. This is the minimum number of classes to output even if the classes do not meet the required thresh_prop
+
+	Outputs: 
+	new_vector - concatenated vector of basis points between [0,1] representing all observed handovers to this point
+	new_labels - labels associated with new_vector
+	new_gaussians - updated class gaussian descriptions as ndarray n by 2 where n = number of classes 
+	new_counts - list of number of elements counts associated with each of the n new_guassians
+	'''
+	return ''

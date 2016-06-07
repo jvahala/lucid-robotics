@@ -41,6 +41,30 @@ def getLaplacian(W,D):
 	'''
 	return D-W
 
+def getLaplacianBasis(features,similarity_method='exp',k_nn=5): 
+	'''
+	Purpose: 
+	Returns orthogonal basis for Laplacian embedding of features. Essentially the full spectral clustering algorithm before the actual clustering
+
+	Inputs: 
+	features - n examples by k features ndarray (n>k preferred)
+	similarity_method - method to use for computing the similarity array: 
+		--'exp' computes W[i,j] = exp(-||xi - xj||^2 / 2)
+		--'norm' computes W[i,j] = ||xi - xj||^2
+		--'chain' is specifically for the 'chain' generateData type
+	k_nn - number of nearest neighbors to consider in similarity array
+	num_clusters - number of clusters for kmeans++ to sort the data into
+
+	Outputs: 
+	U - orthogonal basis returned by the svd of the laplacian with columns corresponding to the most significant singular values at the lowest indices
+
+	'''
+	W = getSimilarityArray(features,similarity_method,k_nn)
+	D = getDegreeArray(W)
+	L = getLaplacian(W,D)
+	U,s,V = np.linalg.svd(L,full_matrices=0)
+	return U
+
 def spectralClustering(features,similarity_method='exp',k_nn=5,basis_dim=2,num_clusters=2): 
 	'''
 	Purpose: 
@@ -62,10 +86,11 @@ def spectralClustering(features,similarity_method='exp',k_nn=5,basis_dim=2,num_c
 
 	'''
 
-	W = getSimilarityArray(features,similarity_method,k_nn)
-	D = getDegreeArray(W)
-	L = getLaplacian(W,D)
-	U,s,V = np.linalg.svd(L,full_matrices=0)
+	#W = getSimilarityArray(features,similarity_method,k_nn)
+	#D = getDegreeArray(W)
+	#L = getLaplacian(W,D)
+	#U,s,V = np.linalg.svd(L,full_matrices=0)
+	U = getLaplacianBasis(features,similarity_method=similarity_method,k_nn=k_nn)
 	U = U[:,-1*basis_dim:]
 	labels, centers = kplusplus(U.T,num_clusters)
 	return labels, centers, U 
