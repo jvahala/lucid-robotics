@@ -113,17 +113,17 @@ def plotMovie3d(names_list,data_sequence,data_sequence_labels,label_labels = [''
 		elif data_sequence_labels[index] == 1: 
 			color= 'k'
 		elif data_sequence_labels[index] == 2: 
-			color = 'g'
+			color = 'y'
 		elif data_sequence_labels[index] == 3: 
 			color = 'm'
 		elif data_sequence_labels[index] == 4: 
 			color = 'b'
 		else: 
-			color = 'y'
+			color = 'g'
 		print color
 		visualize(names,joints,3,ax,color)
 
-		#pretty it up
+		#pretty it up 
 		if len(label_labels) == 2: 
 			labels0 = mpatches.Patch(color='red', label=label_labels[0])
 			labels1 = mpatches.Patch(color='black', label=label_labels[1])
@@ -131,21 +131,21 @@ def plotMovie3d(names_list,data_sequence,data_sequence_labels,label_labels = [''
 		elif len(label_labels) == 3: 
 			labels0 = mpatches.Patch(color='red', label=label_labels[0])
 			labels1 = mpatches.Patch(color='black', label=label_labels[1])
-			labels2 = mpatches.Patch(color='green', label=label_labels[2])
+			labels2 = mpatches.Patch(color='yellow', label=label_labels[2])
 			plt.legend(handles=[labels0,labels1,labels2],loc='lower left')
 		elif len(label_labels) == 4: 
 			labels0 = mpatches.Patch(color='red', label=label_labels[0])
 			labels1 = mpatches.Patch(color='black', label=label_labels[1])
-			labels2 = mpatches.Patch(color='green', label=label_labels[2])
+			labels2 = mpatches.Patch(color='yellow', label=label_labels[2])
 			labels3 = mpatches.Patch(color='m', label=label_labels[3])
 			plt.legend(handles=[labels0,labels1,labels2,labels3],loc='lower left')
 		'''elif len(label_labels) == 6:
 			labels0 = mpatches.Patch(color='red', label=label_labels[0])
 			labels1 = mpatches.Patch(color='black', label=label_labels[1])
-			labels2 = mpatches.Patch(color='green', label=label_labels[2])
+			labels2 = mpatches.Patch(color='yellow', label=label_labels[2])
 			labels3 = mpatches.Patch(color='m', label=label_labels[3])
 			labels4 = mpatches.Patch(color='b', label=label_labels[4])
-			labels5 = mpatches.Patch(color='y', label=label_labels[5])
+			labels5 = mpatches.Patch(color='g', label=label_labels[5])
 			plt.legend(handles=[labels0,labels1,labels3,labels4,labels5],loc='lower left')
 		'''
 	
@@ -162,9 +162,10 @@ def plotMovie3d(names_list,data_sequence,data_sequence_labels,label_labels = [''
 		ax.set_ylabel()
 		ax.set_zlabel()'''
 		ax.set_title(title_str, y = 0.95,fontsize = 12)
+		'''
 		#save and close the figure
 		#frame_note = 'Frame %03d'%frame_num
-		#plt.figtext(0.6,0.1,frame_note,fontdict=None,fontsize=10)
+		#plt.figtext(0.6,0.1,frame_note,fontdict=None,fontsize=10)'''
 		fname = '_tmp%05d.png'%index
 		plt.savefig(fname)
 		plt.clf()
@@ -204,4 +205,5 @@ def plotSingleFeature(X, feature_name='Feature X', plot_range=[], color_choice =
 	plt.xlabel('time ('+x_unit+')')
 	plt.ylabel('feature value ('+y_unit+')')
 	plt.legend(fontsize='x-small',numpoints=1)
+
 

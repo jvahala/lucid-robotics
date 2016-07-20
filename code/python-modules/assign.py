@@ -62,7 +62,7 @@ def splitStates(gaussians, vector, thresh_mult=1):
 	Inputs: 
 	gaussians - array of gauss (mu,sigma) tuples representing the distributions defined by the current classes
 	vector - one dimensional array of points 
-	thresh_mult - multiplier to move the treshold closer (lower than 1) or further (greater than 1) than the one standard deviation point
+	thresh_mult - multiplier to move the threshold closer (lower than 1) or further (greater than 1) than the one standard deviation point
 
 	Outputs: 
 	new_gaussians - num_classes by 2 array of [mu,sigma,label] pairs
@@ -71,7 +71,7 @@ def splitStates(gaussians, vector, thresh_mult=1):
 	new_labels = -1*np.ones(len(vector))
 	num_classes = gaussians.shape[0]
 	gaussians = gaussians[gaussians[:,0].argsort()]		#sort the gaussians by mean [most negative to least negative mean]
-	print new_labels
+	#print new_labels
 	for dist_num,dist in enumerate(gaussians): 
 		for ind,elt in enumerate(vector): 
 			diff = elt-dist[0]
@@ -81,10 +81,10 @@ def splitStates(gaussians, vector, thresh_mult=1):
 				new_labels[ind] -= 1	# [ (-1) 0 (-2) 1 (-3) 2 (-4) 3 (-5) ...] where (-k) is a class label denoting the point to be inbetween true classes
 	#rename states to be >= 0 (-1->0, (-1-k)->numclasses+k-1, minind (negative)->numclasses-1)
 	new_labels = [int(x) for x in new_labels]
-	print new_labels
+	#print new_labels
 	#-2 -> max_class+1, -3->max_class+2, -4->max_class+3
 	new_labels = [int(0) if x==-1 else int(num_classes-1) if x==-1*(num_classes+1) else int(num_classes+(-2-x)) if x<-1 else int(x) for x in new_labels]
-	print num_classes,new_labels
+	#print num_classes,new_labels
 	num_classes = getNumClasses(new_labels)
 	new_gaussians = getClassDists(vector,new_labels)
 	counts = [np.sum(new_labels==x) for x in np.arange(num_classes)]
@@ -124,8 +124,9 @@ def plotClassDists(gaussians,multiplier):
 	import matplotlib.mlab as mlab
 	import matplotlib.pyplot as plt 
 	x = np.linspace(-2,2,100)
+	color_options = ['k','r','y','m','b','g']
 	for dist_num,dist in enumerate(gaussians): 
-		plt.plot(x,multiplier[dist_num]/(1.0*sum(multiplier))*mlab.normpdf(x,dist[0],dist[1]))
+		plt.plot(x,multiplier[dist_num]/(1.0*sum(multiplier))*mlab.normpdf(x,dist[0],dist[1]),color=color_options[dist_num])
 
 def plotClassPoints(basis,labels):
 	import matplotlib.pyplot as plt 
@@ -137,12 +138,12 @@ def plotClassPoints(basis,labels):
 	plt.ylabel('basis 2')
 	plt.legend(['class '+str(state) for state in np.arange(num_classes)])
 	plt.axis([-1.1,1.1,0.5,1.5])'''
-
-	color_options = ['r','g','b','y','m','k']
+	labels = [int(x) for x in list(labels)]
+	color_options = ['r','k','y','m','b','g']
 	time_scalar = 100/(1.0*len(labels))
 	plt.plot(np.arange(len(labels))*time_scalar, basis-0.05,linestyle='-',marker='None',color='0.75')
-	for i,x in enumerate(labels): 
-		curr_col = color_options[x]
+	for i,j in enumerate(labels): 
+		curr_col = color_options[j]
 		plt.plot(i*time_scalar,basis[i],marker='x',color=curr_col)
 	'''counts = [np.sum(labels==x) for x in np.arange(num_classes)]
 	start = 0

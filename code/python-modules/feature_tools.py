@@ -161,10 +161,10 @@ def thresholdFeatures(features,norm_value):
 	#determine feature groups by comparing how features change together
 	#names, names_len needed
 	names = ['ShoulderLeft', 'ShoulderRight', 'ElbowLeft', 'ElbowRight', 'WristLeft', 'WristRight', 'HandLeft', 'HandRight', 'Head', 'Neck', 'SpineShoulder', 'SpineMid', 'HandTipLeft', 'HandTipRight', 'ThumbLeft', 'ThumbRight']
-	print names, len(names), features.T.shape[0]
+	#print names, len(names), features.T.shape[0]
 	all_feat = np.arange(features.T.shape[0])
 	names_len = sum(1 for i in names if i!='Midpoint')
-	describeFeatures(list(all_feat),len(names),names)
+	#describeFeatures(list(all_feat),len(names),names)
 
 	'''no grouping but with threshold
 	#get midpoint of dataset
@@ -291,7 +291,7 @@ def thresholdFeatures(features,norm_value):
 	#select first element of each group (will be consistent in future calls to this function?) as representative group (doesn't matter)
 	inter_test_set = [group[0] for group in strong_groups[0:-1]] #interjoint test set
 	midpt_test_set = strong_groups[-1] #select whole of the joint to midpoint features as candidates
-	print midpt_test_set
+	#print midpt_test_set
 	
 	#see how these features change with the data_set sent in
 	inter_test_features = features0_1[:,inter_test_set]
@@ -301,7 +301,7 @@ def thresholdFeatures(features,norm_value):
 	inter_test_med = np.median(inter_test_features,axis=0) #get median for each column 
 	midpt_test_med = np.median(midpt_test_features,axis=0)
 
-	#aggreate the difference of each feature from its median and mean and we will see which ends up working better
+	#aggreate the difference of each feature from its median
 	inter_diff_med = np.sum(np.abs(inter_test_features-inter_test_med),axis=0)
 	inter_diff_med = normalize(inter_diff_med,np.amax(inter_diff_med))
 
@@ -314,15 +314,41 @@ def thresholdFeatures(features,norm_value):
 	#then select some number above a threshold from each
 
 	#interjoint features
+	#inter_top_med gives the most changing features when compared to their median values in order of the most changing feature group to the least changing. The following code then adds features to the list of relevant features if they share at least some dissimilarity to the previously added features
 	num_select = 3*names_len #choose a number related to how many joints you have
 	inter_top_med = [x for x in np.argsort(inter_diff_med)[-num_select:][::-1]] #give largest index first
 
 	#compare the features to eachother again and take only those that are dissimilar
 	sim_array_temp = getSimilarityArray(features0_1[:,inter_top_med],'exp',-1)
 	#print sim_array_temp
+	'''want to change this sim_threshold to allow at least some number of features, maybe can do this by simply adding the feature most dissimilar from the group until k items are reached.'''
 	sim_threshold = 0.8 #threshold between 0 and 1. Larger thresholds mean more similarity between features is allowed
 	#if next one is greater than some similarity threshold, of the previous ones, do not put it in
-	for ind, f in enumerate(inter_top_med): 
+	'''get min(similary[feature in index_set vs. all inter_features]), then add to group, then for each of the features in index set, sum up all the distances and get the min similarity again, will want to do this until the sum of the similarities is very high or something ... implement this for the midpoint features as well...maybe its better to look for the most medium similarity feature instead of the most dissimilar/ '''
+
+	#set up first inter_feature, index_set feature as the  most changing feature group
+	inter_features = [strong_groups[inter_top_med[0]][0]]
+	index_set = [0] 
+
+	#while some criteria isnt met, add features until it is 
+	while len(index_set)<3: 
+		keys = [int(x) for x in np.arange(len(inter_top_med)) if x not in index_set]
+		values = np.zeros(len(keys))
+		choices = dict(zip(keys,values))
+		for i in np.arange(len(inter_features)): 
+			for ind,f in enumerate(inter_top_med): 
+				if ind in index_set: 
+					continue
+				key = ind		#because ind will start at 0
+				choices[key] += sim_array_temp[index_set[i],key]		#for each of the inter top med indices, add the value of the similiarity array at the location
+		med_choice_value = np.median(choices.values())
+		med_choice_value_diffs = [v-med_choice_value for v in choices.values()]
+		choice_key = choices.keys()[np.argmin(med_choice_value_diffs)]
+		inter_features.append(strong_groups[inter_top_med[choice_key]][0])
+		index_set.append(choice_key)	#adds the most different feature 
+
+
+	'''for ind, f in enumerate(inter_top_med): 
 		if ind == 0: 
 			inter_features = [strong_groups[f][0]]
 			index_set = [ind]
@@ -337,19 +363,47 @@ def thresholdFeatures(features,norm_value):
 				else:
 					break
 		if len(inter_features)>names_len: #don't allow more features than the number of joints
-			break 
+			break '''
 
-	#do some kind of thing with midpoint features
+	#do same kind of thing with midpoint features
 	midpt_top_med = [x for x in np.argsort(midpt_diff_med)[::-1]] #give largest index first
+	print 'midpoint top med init; ', midpt_top_med
 
 	#compare the features to eachother again and take only those that are dissimilar
 	sim_inds = [midpt_test_set[i] for i in midpt_top_med]
+	print 'sim_inds: ',  sim_inds
 	#print sim_inds
 	sim_array_temp = getSimilarityArray(features0_1[:,sim_inds],'exp',-1)
 	#print sim_array_temp
 	sim_threshold = 0.99 #threshold between 0 and 1. Larger thresholds mean more similarity between features is allowed
+	''' this section here is the new stuff... it current gives some not so good feautures'''
+		#set up first inter_feature, index_set feature as the  most changing feature group
+	midpt_features = [sim_inds[0]]
+	index_set = [0] 
+
+	#while some criteria isnt met, add features until it is 
+	while len(index_set)<3: 
+		keys = [int(x) for x in np.arange(len(midpt_top_med)) if x not in index_set]
+		values = np.zeros(len(keys))
+		choices = dict(zip(keys,values))
+		for i in np.arange(len(midpt_features)): 
+			for ind,f in enumerate(midpt_top_med): 
+				if ind in index_set: 
+					continue
+				key = ind		#because ind will start at 0
+				choices[key] += sim_array_temp[index_set[i],key]		#for each of the midpt top med indices, add the value of the similiarity array at the location
+		med_choice_value = np.median(choices.values())
+		med_choice_value_diffs = [v-med_choice_value for v in choices.values()]
+		choice_key = choices.keys()[np.argmin(med_choice_value_diffs)]
+		#choice_key = next((k for k,v in choices.iteritems() if v == int(np.median(choices.values()))),None)
+		#choice_key = min(choices,key=choices.get)
+		midpt_features.append(sim_inds[choice_key])
+		index_set.append(choice_key)	#adds the most different feature 
+		print 'STEP: ', len(index_set)-1, index_set, midpt_features
+
+	'''this commented thing is the old stuff'''
 	#if next one is greater than some similarity threshold, of the previous ones, do not put it in
-	for ind, f in enumerate(midpt_top_med): 
+	'''for ind, f in enumerate(midpt_top_med): 
 		if ind == 0: 
 			midpt_features = [midpt_test_set[f]]
 			index_set = [ind]
@@ -364,10 +418,12 @@ def thresholdFeatures(features,norm_value):
 				else:
 					break
 		if len(midpt_features)>names_len: #don't allow more features than the number of joints
-			break 
+			break '''
+	print 'midpoint features; ', midpt_features
+	#midpt_features = sim_inds[0:6]
 
 	feature_inds = inter_features + midpt_features
-	print feature_inds
+	#print feature_inds
 	midpoint_multi = len(inter_features)/(-1.*len(midpt_features)) #makes midpoint features worth as much as interjoint features
 	new_features = np.hstack((features[:,inter_features],midpoint_multi*features[:,midpt_features]))
 

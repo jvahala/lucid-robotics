@@ -152,14 +152,12 @@ class kinectData(object):
 				self.norm_value = 1
 				print 'norm_features not found.\n'
 
-
 		#if no features yet defined, start messing with all data
 		if self.feat_array.shape == (1,): 
 			sub_data_array = self.data_array 
 		#else if features are defined, mess with only the new data
 		else: 
 			sub_data_array = self.data_array[(len(self.feat_array)-1):self.num_vectors-1,:]
-
 
 		#define the new feature vectors for each row
 		for row in sub_data_array:
@@ -183,9 +181,10 @@ class kinectData(object):
 				self.feat_array = features
 				self.dataXYZ = jointsXYZ[np.newaxis,:,:]
 
-		#print 'TURE: ', self.feat_array.shape
 		#remove non time-varying features
 		'''will need to implement a method to only calculate the required feature_inds features and to append them properly when adding additional sets of data to the same class object'''
+		#self.features_interjoint = self.feat_array[:,0:120]
+		#self.features_jointMidpoint = self.feat_array[:,120:]
 		self.feat_array, self.feature_inds = feature_tools.thresholdFeatures(self.feat_array,self.norm_value)
 
 		feature_tools.describeFeatures(self.feature_inds, len(self.names_base), self.names_base)

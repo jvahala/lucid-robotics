@@ -155,10 +155,59 @@ def OneBasisThreeHandover():
 	U1e = test.embed(data4,U0,feature_range=[handover_starts[1],handover_starts[2]])
 	U2e = test.embed(data4,U0,feature_range=[handover_starts[2],handover_starts[3]])
 
+	U8e = test.embed(data4,U0,feature_range=[handover_starts[8],handover_starts[9]])
+
 	from ../kmeans import kplusplus
 
-	l1 = kplusplus(U1e.T,k=3)
-	l2 = kplusplus(U2e.T,k=3)
+	l1,c1 = kplusplus(U1e.T,k=3)
+	l2,c2 = kplusplus(U2e.T,k=3)
+	l8,c8 = kplusplus(U8e.T,k=3)
+
+	l1 = utils.orderStates(l1)
+	l2 = utils.orderStates(l2)
+	l8 = utils.orderStates(l8)
+	
+	u0 = U0[:,0]
+	u1 = U1e[:,0]
+	u2 = U2e[:,0]
+	u8 = U8e[:,0]
+	u0 = assign.stretchBasisCol(u0)
+	u1 = assign.stretchBasisCol(u1)
+	u2 = assign.stretchBasisCol(u2)
+	u8 = assign.stretchBasisCol(u8)
+
+	#similar handovers (handover0 through handover6 are the same dish handover type)
+	plt.figure(1)	'''one-basis-3handover.png'''
+	assign.plotClassPoints(u0,l0)
+	assign.plotClassPoints(u1,l1)
+	assign.plotClassPoints(u2,l2)
+	plt.title('new method (basis projection)')
+
+	plt.figure(2)	'''one-basis-cupvplate.png'''
+	assign.plotClassPoints(u1,l1)
+	assign.plotClassPoints(u8,l8)
+	plt.title('p2-3 handover1 (plate) vs. handover8 (cup)')
+
+	plt.show()
+
+
+def hcic16Summary(): 
+	file_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p2/p2-logs/p2-3.txt'
+	data4 = test.setup('4',file_name)
+	data5 = test.setup('5',file_name)
+	handover_starts = ht.handoverID(data4,data5)
+	l0, c0, U0  = test.label(data4, feature_range=[handover_starts[0],handover_starts[1]],num_clusters=3)
+
+	U1e = test.embed(data4,U0,feature_range=[handover_starts[1],handover_starts[2]])
+	U2e = test.embed(data4,U0,feature_range=[handover_starts[2],handover_starts[3]])
+
+	U8e = test.embed(data4,U0,feature_range=[handover_starts[8],handover_starts[9]])
+
+	from ../kmeans import kplusplus
+
+	l1,c1 = kplusplus(U1e.T,k=3)
+	l2,c2 = kplusplus(U2e.T,k=3)
+	l8,c8 = kplusplus(U8e.T,k=3)
 
 	l1 = utils.orderStates(l1)
 	l2 = utils.orderStates(l2)
@@ -170,14 +219,21 @@ def OneBasisThreeHandover():
 	u1 = assign.stretchBasisCol(u1)
 	u2 = assign.stretchBasisCol(u2)
 
+	#similar handovers (handover0 through handover6 are the same dish handover type)
 	plt.figure(1)
 	assign.plotClassPoints(u0,l0)
 	assign.plotClassPoints(u1,l1)
 	assign.plotClassPoints(u2,l2)
-	plt.title('new method (basis projection)')
+	plt.xlabel('Scaled Time')
+	plt.ylabel('Basis Value')
 
-	plt.show()
-
-
+	data_names = data4.names_list
+	ainds = [233, 257, 275, 293, 311, 315, 322]
+	data_input = data4.data_array[ainds,:]
+	label_input = [0, 1, 0, 2, 0, 1, 0]
+	label_labels = ['State 1', 'State 2', 'State 3']
+	
+	visualize.plotMovie3d(data_names,data_input,label_input,label_labels)
+	#removed deletion of the individual frame images and only allowed legend on first frame then shaped them in ppt. 
 
 

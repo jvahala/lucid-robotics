@@ -61,7 +61,7 @@ def kplusplus(X,k):
             temp = 2*np.real(C.T.dot(X)) - val
             L = np.argmax(temp,axis=0) #recalculate the cluster id's to see if any of changed with the new cluster center identifications
             iterations +=1
-            print iterations
+            #print iterations
     return L.reshape(L.shape[0],), C
 
 def example():
