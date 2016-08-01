@@ -25,11 +25,18 @@ def disectJoints(names, joints): #takes 1xn array vector of joint positions name
 	joints3d - N by 3 (x,y,z) ndarray representing the components of each base joint type described in names3d
 
 	'''
+	def baseCounts():
+		freq = np.bincount(base_inv)
+		return freq
+		#return np.array([base_names, freq]).T
+
 	num_joints = len(joints)
 	name_base = []
 	for name in names: 
 		name_base.append(name[:-2])
-	base_names,base_ind,base_inv,base_cnt = np.unique(name_base,return_index=True,return_inverse=True,return_counts=True) #remove the .X, .Y, etc to get base names and the number of each base name
+	# np.unique(return_counts=True) could be used to get base_cnt if numpy is version >1.9
+	base_names,base_ind,base_inv = np.unique(name_base,return_index=True,return_inverse=True) #remove the .X, .Y, etc to get base names and the number of each base name
+	base_cnt = baseCounts()
 	joints3d = np.zeros((1,3))
 	names3d = []
 	ind = 0
