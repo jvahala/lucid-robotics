@@ -113,16 +113,18 @@ def begin():
 
 	return receiver,giver,starts,task,curr_labels
 
-def iterateTask(curr_task_id,receiver,starts,task): 
+def iterateTask(curr_task_id,receiver,starts,task,testvalue): 
 	'''for use after main.begin has been called to get receiver,giver,starts,task,curr_labels'''
 	def updateCounts(count_info,proportions): 
-		print 'PREupdate: ', count_info[0],count_info[1], '* ', proportions
+		#print 'PREupdate: ', count_info[0],count_info[1], '* ', proportions
 		for ind,state in enumerate(count_info[0]): 
 			count_info[1][ind] = count_info[1][ind] * proportions[state]
-		print 'POSTupdate: ', count_info[0],count_info[1]
+		#print 'POSTupdate: ', count_info[0],count_info[1]
 		return count_info
-	def updatePosition(base_state,new_state,count_new,curr_position,position_threshold = 4): 
+
+	def updatePosition(mixed,base_state,new_state,count_new,curr_position,position_threshold = 4): 
 		'''
+		pseudocode: 
 		if base_state == new_state, return count_new = 0, mixed unaltered
 		else count_new++, if count_new > position_threshold, increment position and recreate mixed, count_new = 0, base_state = new_state, else return 
 		return count_new 
@@ -132,14 +134,41 @@ def iterateTask(curr_task_id,receiver,starts,task):
 		else: 
 			count_new += 1
 			if count_new > position_threshold: 
-				curr_position = np.argmax(task.path[curr_position:]==new_state)
+				print 'curr/next = ', curr_position, '/',np.argmax(np.array(task.path[curr_position:])==new_state), 'new: ', new_state
+				curr_position += np.argmax(np.array(task.path[curr_position:])==new_state)
+				print curr_position, 'llllll'
 				if curr_position == 0: 
 					curr_position = len(task.path)-1		#if there is not corresponding position, then default to the last position
 				mixed = rayleigh.MixedRayleigh(task, curr_position)		#update the mixedRayleigh
 				k = i-position_threshold
 				base_state = new_state
-		return base_state, count_new, curr_position
+		return base_state, count_new, mixed, curr_position
 
+	def guessFromPast(curr_labels,past_length=3):
+		'''
+		gets majority vote from past maximum 'past_length' number of labels (or all existing labels) in curr_labels 
+		'''
+		numlabels = len(curr_labels)
+		if numlabels>0:
+			if numlabels > past_length:
+				consider = curr_labels[-past_length]
+			else: 
+				consider = curr_labels 
+			best,aux = utils.majorityVote(consider)
+			return best
+		else: 
+			return -1
+
+	def taskPercentRemaining(task,curr_position,differential): 
+		curr_state_time_remaining = max(task.times[curr_position]-differential, 0)
+		if curr_position == len(task.path)-1: 
+			future_states_times = 0
+		else: 
+			future_states_times = np.sum(task.times[(curr_position+1):])
+		total_task_time = np.sum(task.times)
+		percent_complete = 100*(curr_state_time_remaining+future_states_times)/float(total_task_time)
+		percent_remaining = 100 - percent_complete
+		return percent_remaining
 
 	curr_labels = []
 	old = receiver.feat_array[starts[0]:starts[curr_task_id]]
@@ -149,6 +178,8 @@ def iterateTask(curr_task_id,receiver,starts,task):
 	i = 0
 	k = 0
 	for frame in consider:
+		if i == 100: 
+			pass
 		if i == 0: 
 			curr_labels.append(task.path[0])
 			base_state = task.path[0]
@@ -156,19 +187,44 @@ def iterateTask(curr_task_id,receiver,starts,task):
 			i += 1
 			continue
 		#need to check if mixedRayleigh needs to be updated to the new position, so if the initial state value changes and stays like that for n iterations, then update the position
-
-		[knn_label,count_info] = utils.kNN(frame,receiver.feat_array[starts[0]:starts[curr_task_id]],task.labels, k=20) 
+		kNNnumber = 20
+		[knn_label,count_info] = utils.kNN(frame,receiver.feat_array[starts[0]:starts[curr_task_id]],task.labels, k=kNNnumber) 
+		print 'mixed position: ', mixed.position
 		proportions = mixed.proportionate(i-k)
-		count_info_updated = updateCounts(count_info,proportions)			#choose label by adding in proportions to consideration
+		#choose label by adding in proportions to consideration
+		count_info_updated = updateCounts(count_info,proportions)	
+		#incorporate smoothing by further weighting the past few states
+		expectedfrompast = guessFromPast(curr_labels)
+		'''if i == 5: 
+			print '1: ', np.argmax(np.array(count_info_updated[0])==expectedfrompast)
+			print '2: ', expectedfrompast
+			print '3; ', count_info_updated 
+			print '4: ', count_info_updated[1][np.argmax(np.array(count_info_updated[0])==expectedfrompast)]
+			break '''
+		if expectedfrompast != -1: 
+			x = count_info_updated[1][np.argmax(np.array(count_info_updated[0])==expectedfrompast)]
+			x += 3
+			x *= testvalue
+			count_info_updated[1][np.argmax(np.array(count_info_updated[0])==expectedfrompast)] = x
 		knn_label_updated = count_info_updated[0][np.argmax(count_info_updated[1])]
 		curr_labels.append(knn_label_updated)
 
-		base_state, count_new, curr_position= updatePosition(base_state,knn_label_updated,count_new,curr_position,position_threshold=4)
+		new_base_state, new_count_new, new_mixed, new_curr_position= updatePosition(mixed, base_state,knn_label_updated,count_new,curr_position,position_threshold=4)
+
+		base_state = new_base_state
+		count_new = new_count_new
+		mixed = new_mixed
+		if curr_position != new_curr_position:
+			k = i
+			curr_position = new_curr_position
+
+		percent_complete = taskPercentRemaining(task, curr_position, i-k)
 
 
 		'''uncomment the following two lines to print the kNN count info associated with each frame'''
-		#print '\n\nframe number: ', i
-		#print count_info
+		print '\n\nframe number: ', i, i-k
+		print count_info_updated
+		print 'percent complete: ', percent_complete
 
 		i += 1
 	return [int(x) for x in curr_labels]
