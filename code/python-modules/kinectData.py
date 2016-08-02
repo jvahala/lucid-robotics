@@ -139,18 +139,16 @@ class kinectData(object):
 
 		# if no norm value is assigned, set up the norm value
 		if self.norm_value == -1: 
-			print 'lalala'
 			try:  
-				print 'ta'
 				name_index_1 = self.names_list.index(self.norm_features[0])
 				name_index_2 = self.names_list.index(self.norm_features[1])
-				print 'important: \n', self.data_array[0,name_index_1:name_index_1+3], '\n', self.data_array[0,name_index_2:name_index_2+3]
+				#print 'important: \n', self.data_array[0,name_index_1:name_index_1+3], '\n', self.data_array[0,name_index_2:name_index_2+3]
 				#self.norm_value = np.absolute(self.data_array[0,self.names_list.index(self.norm_features[0])] - self.data_array[0,self.names_list.index(self.norm_features[1])])
 				self.norm_value = 10.0*np.linalg.norm(self.data_array[0,name_index_1:name_index_1+3] - self.data_array[0,name_index_2:name_index_2+3])**2
-				print self.norm_value
+				#print self.norm_value
 			except ValueError: 
 				self.norm_value = 1
-				print 'norm_features not found.\n'
+				print 'ERROR: norm_features not found.\n'
 
 		#if no features yet defined, start messing with all data
 		if self.feat_array.shape == (1,): 

@@ -45,7 +45,7 @@ class Task(object):
 		G_acc = self.defineAcceptedStates(U, labels, self.Tdistwidth)
 		self.setupStates(G_acc)
 		self.split_points = self.findSplitPoints(G_acc)
-		print self.split_points
+		#print self.split_points
 		self.labels = self.redistributePoints(U,self.split_points)
 		self.refineStates(U,self.labels)
 		self.history.append(U[:,0])
@@ -53,7 +53,7 @@ class Task(object):
 		self.path = path
 		self.times = times
 		self.split_points = self.findSplitPoints(self.getStateInfo()[0])
-		print self.split_points
+		#print self.split_points
 
 	def update(self, data_object, curr_extrema=[0,10]): 
 		''' For use when a task is complete and the task models need to be updated. The task which Process.matchTask() has determined this task to be is the one being updated with the new data for the entire task process that has just occured. '''
@@ -82,20 +82,20 @@ class Task(object):
 		self.Tdistwidth -=  0.2*len(self.history)**(-1)
 		if self.Tdistwidth < 1.: 
 			self.Tdistwidth = 1.
-		print 'distwidth (threshold): ', self.Tdistwidth
+		#print 'distwidth (threshold): ', self.Tdistwidth
 		# now, with the new labels and the basis values, define new states, then do splitStates() to determine if a new one should be added 
 		G_acc = self.defineAcceptedStates(Ufull, labels, self.Tdistwidth)
 		# setup the new states for this Task object
 		self.setupStates(G_acc)
 		# find the split points of these accepted states, and redistribute accordingly
 		self.split_points = self.findSplitPoints(G_acc)
-		print self.split_points
+		#print self.split_points
 		self.labels = self.redistributePoints(Ufull,self.split_points)
 
 		#now that the points are redistributed, I now can update my state definitions 
 		self.refineStates(Ufull, self.labels)
 		self.split_points = self.findSplitPoints(self.getStateInfo()[0])
-		# the n handovers i have now witnessed should follow the same path, so the labels i now have are for n processes, I need to split these processes up and check that they are the same. 
+		# the n handovers i have now witnessed should follow the same path, so the labels I now have are for n processes, I need to split these processes up and check that they are the same. 
 
 		start_ind = 0
 		task_count = len(self.history)
@@ -113,9 +113,9 @@ class Task(object):
 		path_lengths = [len(p) for p in path_history]
 		#print 'pathlens: ', path_lengths
 		uValues = np.unique(path_lengths).tolist()		#unique path lengths of all the tasks in path history
-		print 'unique path length values   : ', uValues
+		#print 'unique path length values   : ', uValues
 		uCounts = [len(np.nonzero(np.array(path_lengths) == uv)[0]) for uv in uValues]	#the counts associated with each of the unique path lengths
-		print 'cnts of unique path lengths : ', uCounts
+		#print 'cnts of unique path lengths : ', uCounts
 		uCountsArr = np.array(uCounts)			#array version of uCounts
 		counts_index = np.argmax(uCountsArr)	#index of the largest value of the path lengths 
 		key_inds = np.where(np.array(path_lengths) == uValues[counts_index])[0]		#indices of path_history/times_history associated with the most consistent path length
@@ -180,8 +180,8 @@ class Task(object):
 		G_acc = G_acc[G_acc[:,0].argsort()]
 		self.num_states = len(accepted)
 		self.Taddstate = Taddstate
-		print 'addstate  (threshold): ', self.Taddstate
-		print 'proportions: ', props
+		#print 'addstate  (threshold): ', self.Taddstate
+		#print 'proportions: ', props
 		return G_acc
 
 	def setupStates(self, G_acc):
@@ -230,9 +230,9 @@ class Task(object):
 		path.append(labels1[-1])
 		path = [int(x) for x in path]
 		#print '*************************************'
-		print 'PATH: ',path
+		#print 'PATH: ',path
 		times = [0]*len(path)
-		print 'times; ', times
+		#print 'times; ', times
 		#print '*************************************'
 		for i,p in enumerate(path):
 			so_far = int(np.sum(times[0:i]))

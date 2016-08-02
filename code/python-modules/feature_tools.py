@@ -34,7 +34,7 @@ def disectJoints(names, joints): #takes 1xn array vector of joint positions name
 	name_base = []
 	for name in names: 
 		name_base.append(name[:-2])
-	# np.unique(return_counts=True) could be used to get base_cnt if numpy is version >1.9
+	# return_counts=True could be used in np.unique() to get base_cnt if numpy is version >1.9
 	base_names,base_ind,base_inv = np.unique(name_base,return_index=True,return_inverse=True) #remove the .X, .Y, etc to get base names and the number of each base name
 	base_cnt = baseCounts()
 	joints3d = np.zeros((1,3))

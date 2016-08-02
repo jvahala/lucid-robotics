@@ -70,29 +70,21 @@ def fileSetup(file_name,user1_id,user2_id):
 	return data1,data2,handover_starts
 
 def begin(): 
-	def getFilename(taskid='p2-3'): 
-		base_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p$/p$-logs/#.txt'
+	def getFilename(taskid='p2-3',pc='mac'):
+		if pc == 'mac':  
+			base_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p$/p$-logs/#.txt'
+			print 'using MAC file address'
+		elif pc == 'linux':
+			base_name = '/home/josh/Desktop/V-REP_PRO_EDU/#.txt'
+			print 'using LINUX file address'
 		fid = taskid[1]
 		full_name = base_name.replace('$',fid).replace('#',taskid)
 		return full_name
 
-	def iterateTask(curr_task_id): 
-		curr_labels = []
-		old = receiver.feat_array[starts[0]:starts[curr_task_id]]
-		consider = receiver.feat_array[starts[curr_task_id]:starts[curr_task_id+1]]
-		i = 0
-		for frame in consider:
-			[knn_label,count_info] = utils.kNN(frame,receiver.feat_array[starts[0]:starts[curr_task_id]],task.labels, k=20) 
-			curr_labels.append(knn_label)
-			print '\n\nframe number: ', i
-			print count_info
-			i += 1
-		return [int(x) for x in curr_labels]
-
 
 	#setup file name information
 	task_id = 'p2-3'				#task from the dataset 
-	file_name = getFilename(task_id)
+	file_name = getFilename(task_id,pc='linux')
 	rec_id,giv_id = '4','5'			#receiver and giver id numbers from the dataset
 
 	#set up data objects from full file with proper midpoint
@@ -103,15 +95,9 @@ def begin():
 
 	#set up a process with one task added and increment current task from 0 to 1
 	proc = Process()		#need to implement a Process.addTask() method 
-	#proc.addTask(Task)
+	#proc.addTask(task)
 
-	#for each frame in the next task
-	curr_task_id = 1
-	curr_labels = iterateTask(curr_task_id)
-
-	print curr_labels 
-
-	return receiver,giver,starts,task,curr_labels
+	return receiver,giver,starts,task
 
 def iterateTask(curr_task_id,receiver,starts,task,testvalue): 
 	'''for use after main.begin has been called to get receiver,giver,starts,task,curr_labels'''

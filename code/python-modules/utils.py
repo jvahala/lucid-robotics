@@ -4,7 +4,7 @@ use: contains functions associated with general functionality that are not uniqu
 '''
 
 import numpy as np
-from scipy.stats import mode #this isnt actually used i think
+#from scipy.stats import mode #this isnt actually used i think
 
 def getDifferenceArray(vector): 
 	'''
