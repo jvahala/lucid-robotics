@@ -86,7 +86,7 @@ def main():
 
 		#do initialization of kinectData object and task stuff
 
-	def onlineUpdate(complete=False): 
+	def onlineUpdate(kNN_number=20,complete=False): 
 		# define used global variables
 		global base_state
 		global count_new 
@@ -160,10 +160,6 @@ def main():
 			return percent_complete
 			
 
-
-		# get labeled data to use for comparison
-		kNN_number = 20		#look at 20 nearest neighbors
-
 		# add the new line of data and get features
 		data.addData(tmpfile)
 		data.getFeatures()
@@ -211,15 +207,19 @@ def main():
 			last_state_change_frame = frames_in_curr_task
 			curr_mixed_position = new_curr_mixed_position
 
-		frames_since_state_change = frames_in_curr_task-last_state_change_frame
-		print 'Frames since state change: ', frames_since_state_change
-		percent_complete = taskPercentRemaining(task,curr_mixed_position,frames_since_state_change)
+		# get the percent complete. if 
+		if complete: 
+			percent_complete = 100.0
+		else: 
+			frames_since_state_change = frames_in_curr_task-last_state_change_frame
+			print 'Frames since state change: ', frames_since_state_change
+			percent_complete = taskPercentRemaining(task,curr_mixed_position,frames_since_state_change)
 
 		# define information string
 		task_id = 0		#not implemented to determine which task is happening, so just making it task 0 for now....
 		information = str(curr_task_labels[-1])+'\t'+str(percent_complete)+'\t'+str(task_id)
 		print 'information: '+information
-		return information
+		return information, percent_complete
 
 	def taskUpdate(): 
 		pass
@@ -267,7 +267,14 @@ def main():
 	midptfile = '/home/josh/Desktop/midpoint.txt'	#file name of midpoint information (acquired by Vrep)
 	lineshift = '\n'		#for use in appending information to the fourth line of a currently two line file
 	userID = '4'
+	''''''
 
+	'''user set variables'''
+	kNN_number = 20		#look at 20 nearest neighbors
+	percent_complete_threshold = 80.0		#tell arm to move to 100% state if percent complete threshold goes above 80%
+	''''''
+
+	#program start
 	setupFiles()		#makes sure tmpfile and startsfile exist and are prepped
 
 	running = True		#enter the loop
@@ -307,16 +314,18 @@ def main():
 				base_state = task.path[0]							# based state for the mixed Rayleigh distribution used in onlineUpdate()
 				count_new = 0										# variable for counting unexpected states showing up in kNN process considering the expected state from the state-transition-path
 				last_state_change_frame = 0							#holder for state-transition points
+				task_is_complete = False
 				# setup mixed Rayleigh
 				curr_mixed_position = 0
 				mixed = rayleigh.MixedRayleigh(task, position=curr_mixed_position)
-				print 'mixed initialized.'
 
 		else: 
 			if count == 2: 				#new online data exists
 				'''get information for progress and current state'''
 				print '\n\ncurr_task_labels: ', curr_task_labels
-				information = onlineUpdate() 
+				information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete) 
+				if percent_complete > percent_complete_threshold: 
+					task_is_complete = True
 				print 'numvectors post update: ', data.num_vectors
 				sendTmpResponse(lineshift+information)
 				#running = False
@@ -325,7 +334,9 @@ def main():
 
 			elif count == 3: 			#task iteration is complete
 				'''update task definition / define a new task'''
-				information = onlineUpdate(complete=True)	#make sure to send back 100% complete
+				print 'IMMMMMM AT ####333333333'
+				genio.shortenfile(tmpfile,lines,2)
+				information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete)	#make sure to send back 100% complete
 				sendTmpResponse(information)
 				taskUpdate()
 
@@ -336,9 +347,11 @@ def main():
 				base_state = task.path[0]
 				count_new = 0
 				last_state_change_frame = 0							#holder for state-transition points
+				task_is_complete = False
 				# setup mixed Rayleigh
 				curr_mixed_position = 0
 				mixed = rayleigh.MixedRayleigh(task, position=curr_mixed_position)
+				running = False
 
 			elif count == 4: 			#no update from vrep yet
 				pass #(or wait some short amount of time before attempting to process again)
