@@ -7,7 +7,8 @@ def getlines(filename):
 	input filename ('example.txt') and get dictionary of lines indexed by line number (starting at line 0), and number of lines total
 	'''
 	lines = {}		#holds lines
-	with open(filename,'r') as f: 
+	with open(filename,'r') as f:
+		c = -1 
 		for c,l in enumerate(f): 
 			lines[c] = l 
 	c += 1
@@ -27,6 +28,5 @@ def linecount(filename):
 
 def shortenfile(filename,lines,numlines): 
 	with open(filename,'w') as f: 
-		for i in range(numlines): 
-			add = '\n'*min(0,i)
-			f.write(add+new_lines[i])
+		for i in range(numlines):
+			f.write(lines[i])

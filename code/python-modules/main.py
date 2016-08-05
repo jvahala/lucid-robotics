@@ -126,7 +126,7 @@ def iterateTask(curr_task_id,receiver,starts,task,testvalue):
 				if curr_position == 0: 
 					curr_position = len(task.path)-1		#if there is not corresponding position, then default to the last position
 				mixed = rayleigh.MixedRayleigh(task, curr_position)		#update the mixedRayleigh
-				k = i-position_threshold
+				#k = i-position_threshold
 				base_state = new_state
 		return base_state, count_new, mixed, curr_position
 

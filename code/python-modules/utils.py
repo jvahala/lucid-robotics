@@ -498,13 +498,18 @@ def majorityVote(values):
 	dothings(x5)
 	dothings(x6)
 	'''
-
-	uValues = np.unique(values).tolist()
-	uCounts = [np.sum(np.array(values) == uv) for uv in uValues]
-	sorted_inds = np.argsort(uCounts)
-	best_val = uValues[sorted_inds[-1]]
-	sorted_vals = [int(uValues[x]) for x in sorted_inds]
-	sorted_cnts = np.sort(uCounts)
+	print 'np.unique(values): ', np.unique(values)
+	if isinstance(values,list): 
+		uValues = np.unique(values).tolist()
+		uCounts = [np.sum(np.array(values) == uv) for uv in uValues]
+		sorted_inds = np.argsort(uCounts)
+		best_val = uValues[sorted_inds[-1]]
+		sorted_vals = [int(uValues[x]) for x in sorted_inds]
+		sorted_cnts = np.sort(uCounts)
+	else: 
+		best_val = values 
+		sorted_vals = values
+		sorted_cnts = len(values)
 	return best_val, [sorted_vals, sorted_cnts]
 
 def kNN(new_point, history_points, history_labels, k=5): 

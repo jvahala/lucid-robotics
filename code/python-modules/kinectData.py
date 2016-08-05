@@ -37,7 +37,9 @@ class kinectData(object):
 		self.init_time = 0				#initial element's timestamp datetime object
 		self.total_time = 0				#total time spanned by the dataset
 		self.delta_time_array = []		#datetime.timedelta objects of each row's elapsed time since the start
-		self.feat_array = np.zeros(1)	#feature array for the data - must call getFeatures() to make this have stuff
+		self.feat_array = np.zeros(1)	#thresholded feature columns taken from self.all_features - call getFeatures() to fill 
+		self.all_features = np.zeros(1)	#feature array for the data containing all features for each frame - call getFeatures() to fill
+		self.feature_norms = -1			#normalizing values for all features that are kept at the first getFeatures() call unless this is set back to -1
 		self.similarity_method = -1 	#similarity method determines how to generate the similarity matrix in utils.getSimilarityArray()
 		self.norm_features = ['SpineMid.X', 'SpineShoulder.X'] #normalize features by the difference between those defined here
 		self.norm_value = -1			#value to normalize features by getFeatures()
@@ -133,7 +135,8 @@ class kinectData(object):
 			currently based on |SpineMid.Y - SpineShoulder.Y|
 		
 		Outputs: 
-		self.feat_array: 		updated with new feature vectors associated with each frame of kinect data 
+		self.all_features: 		updated with all feature vectors associated with each frame of kinect data
+		self.feat_array: 		updated with the new frames of chosen feature vectors for each frame of kinect data
 
 		'''
 
@@ -151,11 +154,11 @@ class kinectData(object):
 				print 'ERROR: norm_features not found.\n'
 
 		#if no features yet defined, start messing with all data
-		if self.feat_array.shape == (1,): 
+		if self.all_features.shape == (1,): 
 			sub_data_array = self.data_array 
 		#else if features are defined, mess with only the new data
 		else: 
-			sub_data_array = self.data_array[(len(self.feat_array)-1):self.num_vectors-1,:]
+			sub_data_array = self.data_array[(len(self.all_features)-1):self.num_vectors-1,:]
 
 		#define the new feature vectors for each row
 		for row in sub_data_array:
@@ -168,24 +171,31 @@ class kinectData(object):
 			features_interjoint = utils.normalize(feature_tools.getInterjointFeatures(jointsXYZ),self.norm_value)
 			features_jointMidpoint = utils.normalize(feature_tools.getJointToMidpointFeatures(jointsXYZ,self.midpoint),self.norm_value)
 			features = np.hstack((features_interjoint,features_jointMidpoint))
-			#features = features/(1.*np.amax(features,axis=0)) #normalize all features within themselves, does this make sense to do just with some generic current max? Future data will be poorly compared to eachother...need some definite 0-1 normalizing factor for all new featuers
+			if self.feature_norms == -1: 
+				self.feature_norms = 1.*np.amax(features,axis=0)
+
+			features = features/self.feature_norms #normalize all features within themselves, does this make sense to do just with some generic current max? Future data will be poorly compared to eachother...need some definite 0-1 normalizing factor for all new featuers
 			#print 'FEATURES: ', features.shape
 
-			#append feat_vec to self.feat_array if it has alread been defined
-			if self.feat_array.shape != (1,):
-				self.feat_array = np.vstack((self.feat_array,features))
+			#append feat_vec to self.all_features if it has alread been defined
+			if self.all_features.shape != (1,):
+				self.all_features = np.vstack((self.all_features,features))
 				self.dataXYZ = np.vstack((self.dataXYZ,jointsXYZ[np.newaxis,:,:]))
 			else: 
-				self.feat_array = features
+				self.all_features = features
 				self.dataXYZ = jointsXYZ[np.newaxis,:,:]
 
 		#remove non time-varying features
 		'''will need to implement a method to only calculate the required feature_inds features and to append them properly when adding additional sets of data to the same class object'''
 		#self.features_interjoint = self.feat_array[:,0:120]
 		#self.features_jointMidpoint = self.feat_array[:,120:]
-		self.feat_array, self.feature_inds = feature_tools.thresholdFeatures(self.feat_array,self.norm_value)
+		if self.feature_inds == -1: 
+			self.feat_array, self.feature_inds = feature_tools.thresholdFeatures(self.all_features,self.norm_value)
+			feature_tools.describeFeatures(self.feature_inds, len(self.names_base), self.names_base)
+		else: 
+			self.feat_array = self.all_features[:,self.feature_inds]
 
-		feature_tools.describeFeatures(self.feature_inds, len(self.names_base), self.names_base)
+		
 
 
 		#end getFeatures()

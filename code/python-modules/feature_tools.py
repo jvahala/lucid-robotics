@@ -431,8 +431,9 @@ def thresholdFeatures(features,norm_value):
 
 	feature_inds = inter_features + midpt_features
 	#print feature_inds
-	midpoint_multi = len(inter_features)/(-1.*len(midpt_features)) #makes midpoint features worth as much as interjoint features
-	new_features = np.hstack((features[:,inter_features],midpoint_multi*features[:,midpt_features]))
+	#midpoint_multi = len(inter_features)/(-1.*len(midpt_features)) #makes midpoint features worth as much as interjoint features
+	#new_features = np.hstack((features[:,inter_features],midpoint_multi*features[:,midpt_features]))
+	new_features = np.hstack((features[:,inter_features],features[:,midpt_features]))
 
 
 	return new_features, feature_inds
