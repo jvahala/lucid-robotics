@@ -221,7 +221,8 @@ def main():
 		print 'information: '+information
 		return information, percent_complete
 
-	def taskUpdate(): 
+	def taskUpdate(task_start,task_end): 
+		task.update(data,[task_start,task_end])
 		pass
 		#update task information 
 
@@ -336,9 +337,12 @@ def main():
 				'''update task definition / define a new task'''
 				print 'IMMMMMM AT ####333333333'
 				genio.shortenfile(tmpfile,lines,2)
+				task_start = data.num_vectors - len(curr_task_labels) - 1
+				task_end = data.num_vectors
 				information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete)	#make sure to send back 100% complete
 				sendTmpResponse(information)
-				taskUpdate()
+				taskUpdate(task_start,task_end)
+				running = False
 
 				#initialization stuff for next task process
 				curr_task_labels = []	#reset the current task labels 
@@ -351,7 +355,6 @@ def main():
 				# setup mixed Rayleigh
 				curr_mixed_position = 0
 				mixed = rayleigh.MixedRayleigh(task, position=curr_mixed_position)
-				running = False
 
 			elif count == 4: 			#no update from vrep yet
 				pass #(or wait some short amount of time before attempting to process again)
