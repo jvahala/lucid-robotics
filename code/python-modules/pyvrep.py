@@ -223,7 +223,7 @@ def main():
 
 	def taskUpdate(task_start,task_end): 
 		task.update(data,[task_start,task_end])
-		pass
+		#pass
 		#update task information 
 
 	def setupFiles():
@@ -330,31 +330,49 @@ def main():
 				print 'numvectors post update: ', data.num_vectors
 				sendTmpResponse(lineshift+information)
 				#running = False
-				if data.num_vectors > 500: 
+				if data.num_vectors > 2000: 
 					return data,task
+				threepeat = False
 
 			elif count == 3: 			#task iteration is complete
 				'''update task definition / define a new task'''
-				print 'IMMMMMM AT ####333333333'
-				genio.shortenfile(tmpfile,lines,2)
-				task_start = data.num_vectors - len(curr_task_labels) - 1
-				task_end = data.num_vectors
-				information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete)	#make sure to send back 100% complete
-				sendTmpResponse(information)
-				taskUpdate(task_start,task_end)
-				running = False
+				#print 'IMMMMMM AT ####333333333'
+				if threepeat == True: 
+					'''task_id = 0
+					percent_complete = 0.0
+					new_information = str(task.path[0])+'\t'+str(percent_complete)+'\t'+str(task_id)
+					sendTmpResponse(new_information)
+					print 'whops'''
+					pass
+				else: 
+					genio.shortenfile(tmpfile,lines,2)
+					task_start = data.num_vectors - len(curr_task_labels) - 1
+					task_end = data.num_vectors
+					print '\n\nOnlineUpdate stuff: --------------------------'
+					information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete)	#make sure to send back 100% complete
+					sendTmpResponse(information)
+					print '\n\nTaskUpdate stuff: ----------------------------'
+					taskUpdate(task_start,task_end)
+					print '------------------------------------------'
+					#running = False
 
-				#initialization stuff for next task process
-				curr_task_labels = []	#reset the current task labels 
-				last_task_end = data.num_vectors 
-				labeled_data = data.feat_array[0:last_task_end,:]
-				base_state = task.path[0]
-				count_new = 0
-				last_state_change_frame = 0							#holder for state-transition points
-				task_is_complete = False
-				# setup mixed Rayleigh
-				curr_mixed_position = 0
-				mixed = rayleigh.MixedRayleigh(task, position=curr_mixed_position)
+					#initialization stuff for next task process
+					curr_task_labels = []	#reset the current task labels 
+					last_task_end = data.num_vectors 
+					labeled_data = data.feat_array[0:last_task_end,:]
+					base_state = task.path[0]
+					count_new = 0
+					last_state_change_frame = 0							#holder for state-transition points
+					task_is_complete = False
+					# setup mixed Rayleigh
+					curr_mixed_position = 0
+					mixed = rayleigh.MixedRayleigh(task, position=curr_mixed_position)
+					#threepeat = True
+					task_id = 0
+					percent_complete = 0.0
+					new_information = str(task.path[0])+'\t'+str(percent_complete)+'\t'+str(task_id)
+					sendTmpResponse(new_information)
+					print 'whops'
 
 			elif count == 4: 			#no update from vrep yet
 				pass #(or wait some short amount of time before attempting to process again)
