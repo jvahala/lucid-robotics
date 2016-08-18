@@ -59,6 +59,7 @@ def fileSetup(file_name,user1_id,user2_id):
 		data = kinectData(user_id) 				#set up kinectData object with user_id 
 		data.addData(file_name)					#adds all data in file with correct user_id
 		data.similarity_method = 'exp'			#uses exponential similarity array 
+		data.feature_inds = [19,20,75,126,127,128]
 		data.getFeatures()						#gets the features for all elements in the file and stores them in data.feat_array
 		return data
 
@@ -69,7 +70,7 @@ def fileSetup(file_name,user1_id,user2_id):
 	handover_starts = ht.handoverID(data1,data2)
 	return data1,data2,handover_starts
 
-def begin(): 
+def begin(task_id='p2-3',pc_type='mac'): 
 	def getFilename(taskid='p2-3',pc='mac'):
 		if pc == 'mac':  
 			base_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p$/p$-logs/#.txt'
@@ -82,22 +83,27 @@ def begin():
 		return full_name
 
 
-	#setup file name information
-	task_id = 'p2-3'				#task from the dataset 
-	file_name = getFilename(task_id,pc='linux')
-	rec_id,giv_id = '4','5'			#receiver and giver id numbers from the dataset
+	#setup file name information				
+	file_name = getFilename(task_id,pc=pc_type)
+	if task_id == 'p2-3': 
+		rec_id,giv_id = '4','5'			#receiver and giver id numbers from the dataset
+	elif task_id == 'p2-10': 
+		rec_id,giv_id = '5','1'
+	elif task_id == 'p2-2':
+		rec_id,giv_id = '0','5'
 
 	#set up data objects from full file with proper midpoint
 	receiver,giver,starts = fileSetup(file_name,rec_id,giv_id)
 
 	#define initial task using spectral clustering
-	task = Task(data_object=receiver, curr_extrema=[starts[0],starts[1]], k=3)
+	rtask = Task(data_object=receiver, curr_extrema=[starts[0],starts[1]], k=3)
+	gtask = Task(data_object=giver, curr_extrema=[starts[0],starts[1]], k=3)
 
 	#set up a process with one task added and increment current task from 0 to 1
 	proc = Process()		#need to implement a Process.addTask() method 
 	#proc.addTask(task)
 
-	return receiver,giver,starts,task
+	return receiver,giver,starts,rtask,gtask
 
 def iterateTask(curr_task_id,receiver,starts,task,testvalue): 
 	'''for use after main.begin has been called to get receiver,giver,starts,task,curr_labels'''
@@ -137,7 +143,7 @@ def iterateTask(curr_task_id,receiver,starts,task,testvalue):
 		numlabels = len(curr_labels)
 		if numlabels>0:
 			if numlabels > past_length:
-				consider = curr_labels[-past_length]
+				consider = curr_labels[-past_length:]
 			else: 
 				consider = curr_labels 
 			best,aux = utils.majorityVote(consider)

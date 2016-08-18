@@ -19,7 +19,7 @@ class Process(object):
 
 
 class Task(object): 
-	def __init__(self, data_object, curr_extrema=[0,10], k=3):
+	def __init__(self, data_object, curr_extrema=[0,10], k=3, basis_dim=2):
 		
 		def defineInitBasisLabels(data_object, curr_extrema, basis_dim, k): 
 			curr_input = data_object.feat_array[curr_extrema[0]:curr_extrema[1],:]
@@ -36,7 +36,7 @@ class Task(object):
 		self.states = {}					#dictionary {<state_number>: State instance}
 		self.history = []					# all previous data points assigned to this task type 
 		self.Taddstate = 0.18				#may want to define this according to how many states exist
-		self.basis_dim = 2					#embedding dimension
+		self.basis_dim = basis_dim					#embedding dimension
 		self.k = k							#number of clusters
 		self.Tdistwidth = 1.5				#start with requiring new points to be within 1.5 standard deviations of each class definition to be considered inside the class
 
@@ -194,6 +194,8 @@ class Task(object):
 		return
 
 	def findSplitPoints(self, G_acc): 
+		if len(G_acc) == 1: 
+			return np.array([1.])
 		split_points = np.zeros(len(G_acc)-1)
 		for a in np.arange(len(G_acc)-1): 
 			root = utils.gaussiansMeet(G_acc[a,0],G_acc[a,1],G_acc[a+1,0],G_acc[a+1,1])

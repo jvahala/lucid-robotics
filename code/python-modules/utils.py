@@ -139,9 +139,11 @@ def gaussiansMeet(mu1, std1, mu2, std2):
 	roots - all real values of intersection points 
 
 	'''
+	#print 'mu stuff: ', mu1, std1, mu2,std2
 	a = 1/(2.*std1**2) - 1/(2.*std2**2)
 	b = mu2/(1.*std2**2) - mu1/(1.*std1**2)
 	c = mu1**2 /(2.*std1**2) - mu2**2 / (2.*std2**2) - np.log(std2/(1.*std1))
+	#print a,b,c
 	return np.roots([a,b,c])
 
 class Subspace(object):
@@ -166,7 +168,7 @@ class Subspace(object):
 		self.n = U.shape[0]		#number of elements in the subspace
 		self.p = U.shape[1]		#number of features in subspace
 
-	def projectOnMe(self,X):
+	def projectOnMe(self,X,onlyshape=False):
 		'''
 		Purpose: 
 		Adds or subtracts random points from the matrix X to coincide with the same number of points as self.n. This function uses interpolation between points randomly chosen to add new points to coincide with the dimension of the basis array self.U. 
@@ -293,8 +295,11 @@ class Subspace(object):
 			print 'contracting'
 			X,inds = contractX(X)
 			status = -1					#indices have been removed, will need to interpolate in projection later
-		Z = projectToSubspace(X,self.U)
-		Z = resolveProjection(Z,inds,status)
+		if onlyshape: 
+			return X
+		else: 
+			Z = projectToSubspace(X,self.U)
+			Z = resolveProjection(Z,inds,status)
 		return Z
 
 def projectToSubspace(X,Y): 
@@ -498,7 +503,7 @@ def majorityVote(values):
 	dothings(x5)
 	dothings(x6)
 	'''
-	print 'np.unique(values): ', np.unique(values)
+	#print 'np.unique(values): ', np.unique(values), values
 	if isinstance(values,list): 
 		uValues = np.unique(values).tolist()
 		uCounts = [np.sum(np.array(values) == uv) for uv in uValues]
@@ -549,5 +554,14 @@ def compareTaskDef(task_obj,new_labels,kinectData_obj):
 	return
 
 
+def plotFeaturesTogether(data_obj,col,starts,tasknums):
+	import matplotlib.pyplot as plt 
 
+	colors = 'kbgrmy'
+	for i,t in enumerate(tasknums):
+		a,b = starts[t],starts[t+1]
+		print a,b 
+		print colors[i]
+		plt.plot(np.arange(b-a),data_obj.feat_array[a:b,col],'-',color=colors[i],label='task'+str(t))
+	plt.legend()
 

@@ -123,7 +123,7 @@ class kinectData(object):
 		print ' Data added.\n'
 		#end addData()
 
-	def getFeatures(self):
+	def getFeatures(self, exp_weighting=True):
 
 		'''
 		Purpose: 
@@ -139,7 +139,6 @@ class kinectData(object):
 		self.feat_array: 		updated with the new frames of chosen feature vectors for each frame of kinect data
 
 		'''
-
 		# if no norm value is assigned, set up the norm value
 		if self.norm_value == -1: 
 			try:  
@@ -156,9 +155,11 @@ class kinectData(object):
 		#if no features yet defined, start messing with all data
 		if self.all_features.shape == (1,): 
 			sub_data_array = self.data_array 
+			weight_all = True
 		#else if features are defined, mess with only the new data
 		else: 
 			sub_data_array = self.data_array[(len(self.all_features)-1):self.num_vectors-1,:]
+			weight_all = False
 
 		#define the new feature vectors for each row
 		for row in sub_data_array:
@@ -171,24 +172,28 @@ class kinectData(object):
 			features_interjoint = utils.normalize(feature_tools.getInterjointFeatures(jointsXYZ),self.norm_value)
 			features_jointMidpoint = utils.normalize(feature_tools.getJointToMidpointFeatures(jointsXYZ,self.midpoint),self.norm_value)
 			features = np.hstack((features_interjoint,features_jointMidpoint))
-			if self.feature_norms == -1: 
-				self.feature_norms = 1.*np.amax(features,axis=0)
-
-			features = features/self.feature_norms #normalize all features within themselves, does this make sense to do just with some generic current max? Future data will be poorly compared to eachother...need some definite 0-1 normalizing factor for all new featuers
-			#print 'FEATURES: ', features.shape
+			if self.feature_norms != -1: 
+				features = features/self.feature_norms #normalize all features within themselves, does this make sense to do just with some generic current max? Future data will be poorly compared to eachother...need some definite 0-1 normalizing factor for all new featuers
+				print 'feature_norms; ', self.feature_norms 
 
 			#append feat_vec to self.all_features if it has alread been defined
-			if self.all_features.shape != (1,):
+			if self.all_features.shape != (1,):			#all_features exists
+				if len(self.all_features)>1:
+					features = 0.5*features + 0.3*self.all_features[-1,:] + 0.2*self.all_features[-2,:]		#apply a basic weighted moving average
 				self.all_features = np.vstack((self.all_features,features))
 				self.dataXYZ = np.vstack((self.dataXYZ,jointsXYZ[np.newaxis,:,:]))
-			else: 
-				self.all_features = features
+			else: 										#all_features does not exist
+				self.all_features = features.reshape(1,len(features))
 				self.dataXYZ = jointsXYZ[np.newaxis,:,:]
 
 		#remove non time-varying features
 		'''will need to implement a method to only calculate the required feature_inds features and to append them properly when adding additional sets of data to the same class object'''
 		#self.features_interjoint = self.feat_array[:,0:120]
 		#self.features_jointMidpoint = self.feat_array[:,120:]
+		if self.feature_norms == -1: 
+			self.feature_norms = 1.*np.amax(self.all_features,axis=0)
+			self.all_features = self.all_features/self.feature_norms
+
 		if self.feature_inds == -1: 
 			self.feat_array, self.feature_inds = feature_tools.thresholdFeatures(self.all_features,self.norm_value)
 			feature_tools.describeFeatures(self.feature_inds, len(self.names_base), self.names_base)
