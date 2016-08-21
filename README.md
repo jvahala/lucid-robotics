@@ -1,6 +1,4 @@
-# lucid-robotics
-
-Automation of Collaborative Human-Robot Task Modelling 
+#Automation of Collaborative Human-Robot Task Modelling 
 
 Prior research has shown that adapting a robot's motion in human-robot collaborative tasks leads to a better user experience without drastically effecting task efficiency compared to a proactive "speed-based" robot model in which the robot accomplishes its process without concern for user task progress. However, the same research required a deep understanding of the task itself to build the model, and thus it was an intensive process for additional collaborative models to be produced. 
 
