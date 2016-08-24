@@ -302,7 +302,7 @@ def main():
 			print 'curr count: ',count, 'startscount: ', starts_count
 			if starts_count == 2: 	
 				print 'initializing'
-				data,task = initialize(userID) 
+				data,task = initialize(userID) 		
 				initialized = True	
 				#running = False
 				information = str(task.path[0])+'\t0.0\t0'			# 'curr_state	percent_complete	curr_task'

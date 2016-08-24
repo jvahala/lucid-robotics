@@ -1,4 +1,4 @@
-from process import Task
+import process
 import assign
 import utils
 import kinectData
@@ -28,8 +28,8 @@ def getSeveralBases(data,curr_extrema,several=11):
 
 
 def combineTasks(data1,data2,starts,howmany):
-	task1 = Task(data_object=data1,curr_extrema=[starts[0],starts[1]],k=3)
-	task2 = Task(data_object=data2,curr_extrema=[starts[0],starts[1]],k=3)
+	task1 = process.Task(data_object=data1,curr_extrema=[starts[0],starts[1]],k=3)
+	task2 = process.Task(data_object=data2,curr_extrema=[starts[0],starts[1]],k=3)
 	task1init = [task1.path, task1.times]
 	task2init = [task2.path, task2.times]
 
@@ -66,9 +66,9 @@ def getSubspaces(receiver,giver,starts,dim=4):
 	urec = {}
 	ugiv = {}
 	for i in range(11): 
-		task = Task(receiver,[starts[i],starts[i+1]],k=3,basis_dim=dim)	#gets 5 different basis vectors
+		task = process.Task(receiver,[starts[i],starts[i+1]],k=3,basis_dim=dim)	#gets 5 different basis vectors
 		urec[i] = task.subspace
-		task = Task(giver,[starts[i],starts[i+1]],k=3,basis_dim=dim)
+		task = process.Task(giver,[starts[i],starts[i+1]],k=3,basis_dim=dim)
 		ugiv[i] = task.subspace
 	return urec,ugiv 
 
@@ -79,7 +79,7 @@ def compareBases(subspace,Unew):
 		error.append(np.sum(np.abs(subspace.U[:,-2]-col)))
 	return z,error 
 
-def subspaceTimeWarp(subspace1,subspace2,col1,col2,constraint=0.1,window=10): 
+def subspaceTimeWarp(subspace1,subspace2,col1,col2,constraint=0.05 ,window=10): 
 	# reshape second subspace basis to fit length of first subspace
 	C = subspace1.projectOnMe(subspace2.U,onlyshape=True)
 
@@ -99,9 +99,10 @@ def subspaceTimeWarp(subspace1,subspace2,col1,col2,constraint=0.1,window=10):
 
 	return q,c,path,cost
 	
-def basisTimeWarp(q,c,constraint=0.1,dist='squared'): 
+def basisTimeWarp(q,c,constraint=0.05 ,dist='squared'): 
 
 	qlen,clen = len(q),len(c)
+	#print 'qlen,clen', qlen,clen
 
 	#define distance matrix D 
 	D = np.zeros((qlen,clen))
@@ -194,7 +195,7 @@ def printMinCosts(subspace1,subspace2_group,col1=2,constraint=0.75,window=3):
 		print item 
 	return costs_list
 
-def compareFeatureCosts(data_obj1,data_obj2,starts,feature,numtasks=10,constraint=0.1):
+def compareFeatureCosts(data_obj1,data_obj2,starts,feature,numtasks=10,constraint=0.05):
 	'''
 	Purpose: 
 	creates a grid of task to task comparisons colored based on the strength of the costs from DTW. One half of the diagonal represents the inter-task-type comparisons (ie receiver task 0 vs receiver task 1), and the alternate half of the diagonal reprsents the contra-task-type comparisons (ie receiver task 0 vs giver task 1)
@@ -224,23 +225,28 @@ def compareFeatureCosts(data_obj1,data_obj2,starts,feature,numtasks=10,constrain
 
 	return costmap 
 
-def plotCostMap(data_obj1,data_obj2,starts,numtasks=10,constraint=0.1):
+def plotCostMap(data_obj1,data_obj2,starts,endtype='median',numtasks=10,constraint=0.05,colormap='cool',threshold=True):
 	import matplotlib.cm as cm 
 	import matplotlib.pyplot as plt 
-	my_cmap = cm.get_cmap('cool')
+	my_cmap = cm.get_cmap(colormap)
 
-	costmap = np.zeros((numtasks,numtasks))
-	for i in range(6): 
-		costmap += compareFeatureCosts(data_obj1,data_obj2,starts,i,numtasks,constraint)
+	num_features = 6
+	costmaps = ['']*num_features 
+	for i in range(num_features): 
+		costmaps[i] = compareFeatureCosts(data_obj1,data_obj2,starts,i,numtasks,constraint)
 		print 'feature', i, 'complete'
+	if endtype == 'avg':
+		costmap = np.mean(costmaps,axis=0)
+	elif endtype == 'median': 
+		costmap = np.median(costmaps,axis=0)
+	if threshold: 
+		for i,c in enumerate(costmap): 
+			for j,k in enumerate(c): 
+				if k > 3.353: 
+					costmap[i,j] = 12
+				elif k<=3.353: 
+					costmap[i,j] = 4
 
-	costmap = costmap/6
-	for i,c in enumerate(costmap): 
-		for j,k in enumerate(c): 
-			if k > 12: 
-				costmap[i,j] = 12
-			elif k<4: 
-				costmap[i,j] = 4
 	x = np.arange(numtasks+1)
 	X,Y = np.meshgrid(x,x)
 
@@ -254,8 +260,37 @@ def plotCostMap(data_obj1,data_obj2,starts,numtasks=10,constraint=0.1):
 	plt.xlabel('Base Task Number')
 
 	print costmap 
+	return costmap 
+
+def getTaskMetric(path,times,current_labels,position,frames_since_state_change,constraint=0.05):
+	estimated_path = createPathObject(path,times,position,frames_since_state_change)
+	estimated_path = np.array(estimated_path).reshape(len(estimated_path),1)
+	current_labels = np.array(current_labels).reshape(len(current_labels),1)
+	#print 'est shape: ', estimated_path.shape
+	#print 'curr shape:', current_labels.shape
+	path,cost= basisTimeWarp(estimated_path,current_labels,constraint=constraint)
+	return cost
+
+def createPathObject(path,times,position,frames_since_state_change): 
+	full = []
+	for i,p in enumerate(path): 
+		if i < position: 
+			full += [p]*times[i]
+		else: 
+			full += [p]*min(times[i],frames_since_state_change)
+			break
+	return full
 
 
+def main(): 
+	p1,p2 = [0,1,2,3,4,3,2,1],[3,2,5,9,1]
+	t1,t2 = [9]*8,[5,10,15,20,5]
+
+	b = 0
+	frames = 30
+
+	print createPathObject(p1,t1,b,frames)
+	print createPathObject(p2,t2,b,frames)
 
 
 

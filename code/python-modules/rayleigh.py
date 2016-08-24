@@ -27,7 +27,7 @@ class MixedRayleigh(object):
 	There must be some scale set for the entire process, maybe 0 to 10. The increments are based upon the expected task length (sum(task.times)). The crossover points are at the relative time position throughout the task. 
 
 	'''
-	def __init__(self,task_obj,position=0): #initializes the mixed rayleigh based on the current task definition
+	def __init__(self,task_obj=None,position=0): #initializes the mixed rayleigh based on the current task definition
 		def getSigmas(means): 	
 			#definition of Rayleigh distribution: mean = sigma*sqrt(pi/2) (sigmas are the modes of each rayleigh distribution)
 			scaler = np.sqrt(0.5*np.pi)
@@ -39,6 +39,7 @@ class MixedRayleigh(object):
 		self.dists = {}			#dictionary of the Rayleigh objects sorted by position in the state-transition-path
 		self.task = task_obj 
 		self.position = position
+
 		#from the task_obj, collect the number of states remaining from given position
 		states_left = len(task_obj.path)-position 
 		#convert the expected state times into positions on the default scale, 0 -> 0, 10 -> 10/sum(times[position:])*self.scale, 5 -> 0+10+5 / sum(times[position:]) * self.scale
@@ -55,9 +56,35 @@ class MixedRayleigh(object):
 			self.dists[key] = value
 
 
-		#define variances for each transition time to be me
+	def updateSelf(self,new_position): 
+		def getSigmas(means): 	
+			#definition of Rayleigh distribution: mean = sigma*sqrt(pi/2) (sigmas are the modes of each rayleigh distribution)
+			scaler = np.sqrt(0.5*np.pi)
+			sigmas = [x/scaler for x in means]
+			return sigmas
 
-	def proportionate(self,frame_count):
+		self.scale = sum(self.task.times[new_position:])
+		self.dists = {}
+		self.position = new_position 
+
+		path = self.task.path
+		times = self.task.times
+		position = self.position
+
+		states_left = len(path)-position
+		means = [0]+[(x+sum(times[position:i]))/float(sum(times[position:]))*self.scale for i,x in enumerate(times) if i>=position]
+		print 'transition times/mean values: ', means
+		sigmas = getSigmas(means)
+		print 'sigmas; ', sigmas
+		#build the rayleigh distribution objects
+		print 'states left: ', states_left
+		for k in np.arange(states_left): 
+			key = k 
+			value = Rayleigh(sigmas[1+k])
+			print 'k/v: ', key,value.sigma
+			self.dists[key] = value
+
+	def proportionate(self,frame_count,proportion_scalar=10.0):
 		'''
 		Purpose: 
 		Returns the proportions of each distribution at the input location in the mixed Rayleigh distribution soas to scale the counts returned from kNN. 
@@ -77,17 +104,25 @@ class MixedRayleigh(object):
 		for s in np.arange(num_states): 
 			proportions[s] = 0
 		values = np.array([self.dists[x].pdf(frame_count) for x in self.dists])
-		prop_values = values/np.amax(values)
-		#print 'proportional state values, ',prop_values
-		for d in self.dists: 
-			for s in proportions: 
-				#print 'd,s', d,s
-				if self.task.path[self.position+d] == s: 
-					proportions[s] += prop_values[d]
-					#print 'proportions[s], s =', s, proportions[s]
-					break
-		#print 'proportion dict: ', proportions
-		return proportions
+		#print 'Trouble with values: ', values 
+		if np.amax(values) != 0: 
+			prop_values = values/np.amax(values)
+			#print 'proportional state values, ',prop_values
+			for d in self.dists: 
+				for s in proportions: 
+					#print 'd,s', d,s,self.position
+					if self.task.path[self.position+d] == s: 
+						proportions[s] += prop_values[d]
+						#print 'proportions[s], s =', s, proportions[s]
+						break
+			#print 'proportion dict: ', proportions
+			#print 'Trouble in proportionate: ', proportions.values()
+			totalvalue = np.sum(proportions.values())
+			for k in proportions:
+				proportions[k] = proportions[k]/totalvalue * proportion_scalar
+			return proportions
+		else: 
+			return -1
 
 
 

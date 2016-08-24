@@ -39,7 +39,7 @@ class kinectData(object):
 		self.delta_time_array = []		#datetime.timedelta objects of each row's elapsed time since the start
 		self.feat_array = np.zeros(1)	#thresholded feature columns taken from self.all_features - call getFeatures() to fill 
 		self.all_features = np.zeros(1)	#feature array for the data containing all features for each frame - call getFeatures() to fill
-		self.feature_norms = -1			#normalizing values for all features that are kept at the first getFeatures() call unless this is set back to -1
+		self.feature_norms = []			#normalizing values for all features that are kept at the first getFeatures() call unless this is set back to -1
 		self.similarity_method = -1 	#similarity method determines how to generate the similarity matrix in utils.getSimilarityArray()
 		self.norm_features = ['SpineMid.X', 'SpineShoulder.X'] #normalize features by the difference between those defined here
 		self.norm_value = -1			#value to normalize features by getFeatures()
@@ -172,9 +172,9 @@ class kinectData(object):
 			features_interjoint = utils.normalize(feature_tools.getInterjointFeatures(jointsXYZ),self.norm_value)
 			features_jointMidpoint = utils.normalize(feature_tools.getJointToMidpointFeatures(jointsXYZ,self.midpoint),self.norm_value)
 			features = np.hstack((features_interjoint,features_jointMidpoint))
-			if self.feature_norms != -1: 
+			if len(self.feature_norms) > 0: 
 				features = features/self.feature_norms #normalize all features within themselves, does this make sense to do just with some generic current max? Future data will be poorly compared to eachother...need some definite 0-1 normalizing factor for all new featuers
-				print 'feature_norms; ', self.feature_norms 
+				#print 'feature_norms; ', self.feature_norms 
 
 			#append feat_vec to self.all_features if it has alread been defined
 			if self.all_features.shape != (1,):			#all_features exists
@@ -190,7 +190,7 @@ class kinectData(object):
 		'''will need to implement a method to only calculate the required feature_inds features and to append them properly when adding additional sets of data to the same class object'''
 		#self.features_interjoint = self.feat_array[:,0:120]
 		#self.features_jointMidpoint = self.feat_array[:,120:]
-		if self.feature_norms == -1: 
+		if len(self.feature_norms) == 0: 
 			self.feature_norms = 1.*np.amax(self.all_features,axis=0)
 			self.all_features = self.all_features/self.feature_norms
 

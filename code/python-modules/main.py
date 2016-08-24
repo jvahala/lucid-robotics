@@ -100,7 +100,7 @@ def begin(task_id='p2-3',pc_type='mac'):
 	gtask = Task(data_object=giver, curr_extrema=[starts[0],starts[1]], k=3)
 
 	#set up a process with one task added and increment current task from 0 to 1
-	proc = Process()		#need to implement a Process.addTask() method 
+	#proc = Process()		#need to implement a Process.addTask() method 
 	#proc.addTask(task)
 
 	return receiver,giver,starts,rtask,gtask
