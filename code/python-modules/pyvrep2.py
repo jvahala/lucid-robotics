@@ -10,13 +10,6 @@ import utils
 
 
 def main(): 
-	#global base_state
-	#global count_new 
-	#global mixed 
-	#global curr_mixed_position 
-	#global last_state_change_frame
-	#global curr_position 
-	#global curr_task_labels
 	'''
 	Structure of tmp.txt:
 	---------------------
@@ -87,16 +80,6 @@ def main():
 		#do initialization of kinectData object and task stuff
 
 	def onlineUpdate(kNN_number=20,complete=False): 
-		# define used global variables
-		#global base_state
-		#global count_new 
-		#global mixed 
-		#global curr_mixed_position 
-		#global last_state_change_frame
-		#global curr_position 
-		#global curr_task_labels
-		#global task 
-		#global data 
 			
 		### collect the newest data point and add to kinectData object 
 		# add the new line of data and get features
@@ -114,6 +97,7 @@ def main():
 		#determine the current most likely state
 		if len(evolution.known_tasks[0].curr_labels) > evolution.min_frames_for_probability: 
 			temp_value = 0
+			task_id = 0
 			for t_id,value in evolution.task_online_probability.iteritems(): 
 				if value > temp_value: 
 					task_id = t_id 
@@ -133,7 +117,7 @@ def main():
 
 		### create string response of current state for vrep
 		task_id = evolution.task_history[-1]
-		curr_label = evolution.known_tasks[task_id].curr_labels[-1]
+		curr_label = evolution.known_tasks[task_id].path[0]
 		percent_complete = 0.0
 		new_information = str(curr_label)+'\t'+str(percent_complete)+'\t'+str(task_id)
 		return new_information
@@ -150,12 +134,14 @@ def main():
 		#setup starts file
 		if os.path.isfile(startsfile):		#possibly do somethin different if file already exists, like do the full analysis for the file
 			starts = [224, 327, 474, 678, 807, 909, 995, 1168, 1268, 1367, 1481, 1580]	#values from p2-3.txt result
+			starts = [x-5 for x in starts]
 			starts_str = [str(x) for x in starts]
 			starts_str = '\t'.join(starts_str)
 			with open(startsfile,'w') as f: 
 				f.write(starts_str)
 		else: 
 			starts = [224, 327, 474, 678, 807, 909, 995, 1168, 1268, 1367, 1481, 1580]	#values from p2-3.txt result
+			starts = [x-5 for x in starts]
 			starts_str = [str(x) for x in starts]
 			starts_str = '\t'.join(starts_str)
 			with open(startsfile,'w') as f: 
@@ -221,18 +207,7 @@ def main():
 				#running = False
 				information = str(task.path[0])+'\t0.0\t0'			# 'curr_state	percent_complete	curr_task'
 				sendTmpResponse(information)
-				
-				#initialization stuff for next task process
-				#curr_task_labels = []								# labels for the current task 
-				#last_task_end = data.num_vectors					# last frame to consider as labeled data
-				#labeled_data = data.feat_array[0:last_task_end,:]
-				#base_state = task.path[0]							# based state for the mixed Rayleigh distribution used in onlineUpdate()
-				#count_new = 0										# variable for counting unexpected states showing up in kNN process considering the expected state from the state-transition-path
-				#last_state_change_frame = 0							#holder for state-transition points
 				task_is_complete = False
-				# setup mixed Rayleigh
-				#curr_mixed_position = 0
-				#mixed = rayleigh.MixedRayleigh(task, position=curr_mixed_position)
 
 		else: 
 			if count == 2: 				#new online data exists
@@ -241,10 +216,10 @@ def main():
 				information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete) 
 				if percent_complete > percent_complete_threshold: 
 					task_is_complete = True
-				#print 'numvectors post update: ', data.num_vectors
+				print 'numvectors post update: ', data.num_vectors
 				sendTmpResponse(lineshift+information)
 				#running = False
-				if data.num_vectors > 1500: 
+				if data.num_vectors > 850: 
 					return data,evolution
 				threepeat = False
 
@@ -263,22 +238,8 @@ def main():
 					new_information = processUpdate()
 					print '------------------------------------------'
 					#running = False
-
-					#initialization stuff for next task process
-					#curr_task_labels = []	#reset the current task labels 
-					#last_task_end = data.num_vectors 
-					#labeled_data = data.feat_array[0:last_task_end,:]
-					#base_state = task.path[0]
-					#count_new = 0
-					#last_state_change_frame = 0							#holder for state-transition points
 					task_is_complete = False
-					# setup mixed Rayleigh
-					#curr_mixed_position = 0
-					#mixed = rayleigh.MixedRayleigh(task, position=curr_mixed_position)
-					#threepeat = True
-					#task_id = 0
 					sendTmpResponse(new_information)
-					#print 'whops'
 
 			elif count == 4: 			#no update from vrep yet
 				pass #(or wait some short amount of time before attempting to process again)
