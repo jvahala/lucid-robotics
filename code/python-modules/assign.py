@@ -124,9 +124,12 @@ def plotClassDists(gaussians,multiplier):
 	import matplotlib.mlab as mlab
 	import matplotlib.pyplot as plt 
 	x = np.linspace(-2,2,100)
-	color_options = ['k','r','y','m','b','g']
+	color_options = ['#0652ff','#7ef4cc','#004577','k','r','y','m','b','g']
 	for dist_num,dist in enumerate(gaussians): 
-		plt.plot(x,multiplier[dist_num]/(1.0*sum(multiplier))*mlab.normpdf(x,dist[0],dist[1]),color=color_options[dist_num])
+		if dist_num > 2: 
+			plt.plot(x,multiplier[dist_num]/(1.0*sum(multiplier))*mlab.normpdf(x,dist[0],dist[1]),':',color='k',label='New '+str(dist_num-3))
+		else:
+			plt.plot(x,multiplier[dist_num]/(1.0*sum(multiplier))*mlab.normpdf(x,dist[0],dist[1]),color=color_options[dist_num],label='State '+str(dist_num))
 
 def plotClassPoints(basis,labels):
 	import matplotlib.pyplot as plt 
@@ -139,12 +142,14 @@ def plotClassPoints(basis,labels):
 	plt.legend(['class '+str(state) for state in np.arange(num_classes)])
 	plt.axis([-1.1,1.1,0.5,1.5])'''
 	labels = [int(x) for x in list(labels)]
-	color_options = ['r','k','y','m','b','g']
+	color_options = ['#7ef4cc','#0652ff','#004577','m','b','g']
+	marker_options = ['s','o','^']
 	time_scalar = 100/(1.0*len(labels))
-	plt.plot(np.arange(len(labels))*time_scalar, basis-0.05,linestyle='-',marker='None',color='0.75')
+	plt.plot(np.arange(len(labels))*time_scalar, basis-0.05,linestyle='--',marker='None',color='0.75')
 	for i,j in enumerate(labels): 
 		curr_col = color_options[j]
-		plt.plot(i*time_scalar,basis[i],marker='x',color=curr_col)
+		curr_mark = marker_options[j]
+		plt.plot(i*time_scalar,basis[i],marker=curr_mark,color=curr_col)
 	'''counts = [np.sum(labels==x) for x in np.arange(num_classes)]
 	start = 0
 	for state in np.arange(num_classes):
@@ -152,8 +157,9 @@ def plotClassPoints(basis,labels):
 		x=np.arange(start,start+counts[state])
 		plt.plot(x, basis[labels==state,0]/np.amax(np.abs(basis[:,0])),marker='x',linestyle='None')
 		start = end'''
-	plt.xlabel('scaled index')
-	plt.ylabel('basis 1 value')
+
+	plt.xlabel('Scaled Time')
+	plt.ylabel('Basis Value')
 	plt.axis([0,100,-1.1,1.1])
 
 def updateClasses(prev_vector,prev_labels,vector,labels,thresh_mult=1,thresh_prop=0.2,min_classes=3): 

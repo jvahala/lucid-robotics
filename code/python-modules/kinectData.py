@@ -195,7 +195,7 @@ class kinectData(object):
 			self.all_features = self.all_features/self.feature_norms
 
 		if self.feature_inds == -1: 
-			self.feat_array, self.feature_inds = feature_tools.thresholdFeatures(self.all_features,self.norm_value)
+			self.feat_array, self.feature_inds = feature_tools.thresholdFeatures(self.all_features,self.names_base,self.norm_value)
 			feature_tools.describeFeatures(self.feature_inds, len(self.names_base), self.names_base)
 		else: 
 			self.feat_array = self.all_features[:,self.feature_inds]

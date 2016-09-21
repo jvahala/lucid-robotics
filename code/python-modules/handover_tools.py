@@ -2,6 +2,59 @@ import numpy as np
 import matplotlib.pyplot as plt
 import utils
 
+def handoverIDSingle(user,i=None): 
+	''' For getting the handover statres for a single user scenario '''
+	joint_left = 'HandLeft'
+	joint_right = 'HandRight'
+
+	left = getIndivJoint(user,joint_left)
+	right = getIndivJoint(user,joint_right)
+
+	lmid = getJointDifference(left,user.midpoint)
+	rmid = getJointDifference(right,user.midpoint)
+
+	N = 10 
+	lmid = utils.runningAvg(lmid,N)
+	rmid = utils.runningAvg(rmid,N)
+
+	lvel,lacc = handoverSpeed(lmid,N)
+	rvel,racc = handoverSpeed(rmid,N)
+
+	#determine probable areas for handover splits using thresholds and a version of gradient descent to find handtohand distance minimums
+	min_dist = 0.4	#meters
+	min_vel = 0.25	#meters/sec
+	lsplit = np.logical_and(lmid[0:-1] < min_dist, np.abs(lvel)<min_vel)
+	rsplit = np.logical_and(rmid[0:-1] < min_dist, np.abs(rvel)<min_vel)
+	
+	l_inds = [ind for ind,x in enumerate(lsplit) if x==True]
+	l_inds = groupLikeIndex(l_inds,len(lacc))
+	l_inds = [minDistIndex(x,lmid) for x in l_inds]
+
+	r_inds = [ind for ind,x in enumerate(rsplit) if x==True]
+	r_inds = groupLikeIndex(r_inds,len(racc))
+	r_inds = [minDistIndex(x,rmid) for x in r_inds]
+
+	temp_starts = np.sort(l_inds + r_inds)
+	handover_starts = []
+	value = 10			#was 20 for personal starts
+	for start in temp_starts: 
+		if np.abs(start-value)>30: 		#was 70 for personal starts
+			value = start
+			handover_starts.append(start)
+
+	print 'final starts: ', handover_starts
+
+	l_inds,r_inds = handover_starts,handover_starts
+	# if i != None: 
+	# 	plt.figure(i)
+	# else: 
+	# 	plt.figure(1)
+	# l_inds = [x-1 for x in l_inds]
+	# plotHandoverInfo(lmid,lvel,lacc,l_inds,color_str='r',label='Left Hand')
+	# plotHandoverInfo(rmid,rvel,racc,r_inds,color_str='b',label='Right Hand')
+	# plt.legend()
+
+	return handover_starts
 
 def handoverID(user1, user2):
 	'''
@@ -101,7 +154,7 @@ def groupLikeIndex(ind_list, max_ind):
 		return grouped[0:-1]
 	return grouped
 
-def plotHandoverInfo(handtohand,handvel,handacc,hand_inds,color_str):
+def plotHandoverInfo(handtohand,handvel,handacc,hand_inds,color_str,label):
 	'''
 	Purpose: 
 	plots in a 3 by 1 subplot the distance, velocity, acceleration, and key indices for the handtohand difference between users
@@ -117,19 +170,19 @@ def plotHandoverInfo(handtohand,handvel,handacc,hand_inds,color_str):
 	plot, must call legend outside of plot. 
 	'''
 
-	spf = 0.030 		#seconds per frame
+	spf = 1. 		#seconds per frame
 	plt.subplot(3,1,1)
-	plt.plot(spf*np.arange(len(handvel)),handtohand[0:-1],color=color_str)
+	plt.plot(spf*np.arange(len(handvel)),handtohand[0:-1],color=color_str,label=label)
 	plt.plot(spf*np.array(hand_inds),handtohand[hand_inds],linestyle='None',marker='x',color=color_str,label='_nolegend_')
 	plt.ylabel('distance (m)')
 	plt.title('giver-to-receiver hand-to-hand stats')
 	plt.subplot(3,1,2)
-	plt.plot(spf*np.arange(len(handvel)),handvel,color=color_str)
+	plt.plot(spf*np.arange(len(handvel)),handvel,color=color_str,label=label)
 	plt.plot(spf*np.arange(len(handvel)),np.zeros((len(handvel),1)),color='k',label='_nolegend_')
 	plt.plot(spf*np.array(hand_inds),handvel[hand_inds],linestyle='None',marker='x',color=color_str,label='_nolegend_')
 	plt.ylabel('velocity (m/s)')
 	plt.subplot(3,1,3)
-	plt.plot(spf*np.arange(len(handacc)),handacc,color=color_str)
+	plt.plot(spf*np.arange(len(handacc)),handacc,color=color_str,label=label)
 	plt.plot(spf*np.arange(len(handacc)),np.zeros((len(handacc),1)),color='k',label='_nolegend_')
 	plt.plot(spf*np.array(hand_inds),handacc[hand_inds],linestyle='None',marker='x',color=color_str,label='_nolegend_')
 	plt.ylabel('acceleration (m/s/s)')
@@ -147,7 +200,7 @@ def minDistIndex(curr_ind, handtohand):
 	Outputs: 
 	curr_ind - updated curr_ind that is now at the nearest local minimum 
 	'''
-	if (curr_ind+3) >(len(handtohand)-1) or curr_ind-3 < 0:
+	if (curr_ind+3) >=(len(handtohand)-1) or curr_ind-3 <= 0:
 		return curr_ind
 	else: 
 		higher = handtohand[curr_ind+3]
@@ -158,11 +211,11 @@ def minDistIndex(curr_ind, handtohand):
 		multi = -1
 	while higher < handtohand[curr_ind] or lower < handtohand[curr_ind]:
 		#if the higher indexed version is smaller, then shift curr_ind to toward that direction until it gets larger
-		if (curr_ind + multi*3 > len(handtohand)-1) or (curr_ind + multi*3 < 0) :
+		if (curr_ind + multi*3 >= len(handtohand)-1) or (curr_ind + multi*3 < 0) :
 			return curr_ind
 		else:
 			curr_ind += multi*3
-			higher = handtohand[curr_ind+multi*3]
+			higher = handtohand[curr_ind]
 	return curr_ind
 
 def handoverSpeed(handtohand,N):
@@ -214,7 +267,7 @@ def getJointDifference(jointxyz1, jointxyz2):
 
 	Inputs: 
 	jointxyz1 - m by 1 by 3 jointxyz data
-	jointxyz2 - m by 1 by 3 jointxyz data
+	jointxyz2 - m by 1 by 3 jointxyz data, or a single 1 by 3 [x,y,z] ndarray object
 	
 
 	Outputs: 

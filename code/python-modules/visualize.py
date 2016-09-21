@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from mpl_toolkits.mplot3d import Axes3D
 
-def visualize(names, joints, dim,ax,color = 'k'): 
+def visualize(names, joints, dim,ax,color = 'k',marker='o'): 
 	'''
 	Purpose: 
 	visualize the joint positions on a dim-dimensional platform (1-d, 2-d, or 3-d)
@@ -26,17 +26,22 @@ def visualize(names, joints, dim,ax,color = 'k'):
 	a dim-space plot of the joint positions
 
 	'''
+	
 	#set up connections array for drawing lines between joints
 	#connections[i,j] = 1 means the i-th and j-th indices of possible_names are connected
 	possible_names = ['ShoulderLeft', 'ShoulderRight', 'ElbowLeft', 'ElbowRight',
 					'WristLeft', 'WristRight', 'HandLeft', 'HandRight', 'Head',
 					'Neck', 'SpineShoulder', 'SpineMid', 'HandTipLeft', 'HandTipRight',
 					'ThumbLeft', 'ThumbRight', 'HandLeftOri', 'HandRightOri'] 
+	possible_names = ['ShoulderLeft', 'ShoulderRight', 'ElbowLeft', 'ElbowRight',
+					'WristLeft', 'WristRight', 'HandLeft', 'HandRight', 'Head',
+					'Neck', 'SpineShoulder', 'SpineMid', 'HandTipLeft', 'HandTipRight'] 
 
 	connections = np.zeros((len(possible_names),len(possible_names)))
 	adj = np.array([[0,2],[0,9],[0,10],[0,11],[1,3],[1,9],[1,10],[1,11],[2,4],[3,5],[4,6],[4,14],[5,7],
 					[5,15],[6,12],[6,14],[7,13],[7,15],[8,9],[9,10],[10,11]])
-	connections[adj[:,0],adj[:,1]] = 1
+	#connections[adj[:,0],adj[:,1]] = 1
+	adj = np.array([[0,2],[0,9],[0,10],[0,11],[1,3],[1,9],[1,10],[1,11],[2,4],[3,5],[4,6],[5,7],[6,12],[7,13],[8,9],[9,10],[10,11]])
 	#connections = utils.symmetrize(connections) #maybe include later
 	joints[:,0] = -joints[:,0] #flip x axis 
 	lines = np.hstack((joints[adj[:,0],0:dim],  joints[adj[:,1],0:dim]))
@@ -48,10 +53,9 @@ def visualize(names, joints, dim,ax,color = 'k'):
 	elif dim == 3: 
 		#ax = fig.add_subplot(111, projection='3d')
 		for row in lines: 
-			ax.plot(np.hstack((row[0],row[dim])),np.hstack((row[1],row[dim+1])),np.hstack((row[2],row[dim+2])),'o-'+color)
+			ax.plot(-1*np.hstack((row[0],row[dim])),np.hstack((row[1],row[dim+1])),np.hstack((row[2],row[dim+2])),marker=marker,color=color)
 		ax.view_init(elev=-75, azim=90.1)
 	#plt.show()
-
 	#print lines.shape
 	#print lines
 	#print joints
@@ -60,6 +64,9 @@ def visualize(names, joints, dim,ax,color = 'k'):
 def singlePlot3d(names_list,data_array,data_labels,label_shift, num2plot,start_plot_pos, label_labels = [''],fig_num = 1, title_str = 'Figure', note = ''): 
 	fig = plt.figure(fig_num)
 	ax = fig.add_subplot(111,projection='3d')
+	state0,state1,state2='#7ef4cc','#0652ff','#004577'
+	m0,m1,m2 = 's','o','^'
+	state2 = 'k'
 
 	for k in np.arange(num2plot):
 		#print data_labels[k], k 
@@ -69,36 +76,51 @@ def singlePlot3d(names_list,data_array,data_labels,label_shift, num2plot,start_p
 			names, joints = disectJoints(names_list, data_array)
 		if data_labels[label_shift+k] == 0: 
 			color= 'r'
+			color = state0
+			marker = m0
 		elif data_labels[label_shift+k] == 1: 
 			color= 'k'
+			color = state1
+			marker = m1
 		else: 
 			color = 'y'
-		visualize(names,joints,3,ax,color)
+			color = state2
+			marker = m2
+		visualize(names,joints,3,ax,color,marker)
 		print color
-
+	'''
 	if len(label_labels) == 2: 
 		labels0 = mpatches.Patch(color='red', label=label_labels[0])
 		labels1 = mpatches.Patch(color='black', label=label_labels[1])
 		plt.legend(handles=[labels0,labels1],loc='lower left')
 	if len(label_labels) == 3: 
-		labels0 = mpatches.Patch(color='red', label=label_labels[0])
-		labels1 = mpatches.Patch(color='black', label=label_labels[1])
-		labels2 = mpatches.Patch(color='yellow', label=label_labels[2])
+		labels0 = mpatches.Patch(color=state0, label=label_labels[0])
+		labels1 = mpatches.Patch(color=state1, label=label_labels[1])
+		labels2 = mpatches.Patch(color=state2, label=label_labels[2])
 		plt.legend(handles=[labels0,labels1,labels2],loc='lower left')
-	
+	'''
+	plt.axis('tight')
+	plt.plot([-100],[-100],marker=m0,color=state0,label="State 0")
+	plt.plot([-100],[-100],marker=m1,color=state1,label="State 1")
+	plt.plot([-100],[-100],marker=m2,color=state2,label="State 2")
+	plt.legend(loc='lower-left')
+
 	#remove tick labels and such
 	ax.set_yticklabels([])
 	ax.set_xticklabels([])
 	ax.set_zticklabels([])
-	ax.set_xticks([])
-	ax.set_yticks([])
-	ax.set_zticks([])
+	#ax.set_xticks([])
+	#ax.set_yticks([])
+	#ax.set_zticks([])
+	ax.set_xlabel('X')
+	ax.set_ylabel('Y')
+	ax.set_zlabel('Z')
 
 	plt.figtext(0.6,0.2,note,fontdict=None,fontsize=8)
 	'''ax.set_xlabel()
 	ax.set_ylabel()
 	ax.set_zlabel()'''
-	ax.set_title(title_str, y = 0.95,fontsize = 12)
+	#ax.set_title(title_str, y = 0.95,fontsize = 12)
 	return fig
 
 def plotMovie3d(names_list,data_sequence,data_sequence_labels,label_labels = [''],fig_num = 1, title_str = 'Figure', note = '',fps=2):

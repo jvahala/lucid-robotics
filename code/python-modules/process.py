@@ -5,6 +5,7 @@ import kinectData #maybe unnecessary
 import utils
 import rayleigh
 import task_tools
+from copy import deepcopy
 
 np.set_printoptions(threshold=np.nan,precision=3,suppress=True)
 
@@ -31,8 +32,12 @@ class Process(object):
 		#probability information that a particular task is being performed online
 		self.task_online_probability = {}
 		self.task_online_costs = {}
-		self.min_frames_for_probability = 30
-		self.online_dtw_constraint = 0.2
+		self.min_frames_for_probability = -1
+		self.online_dtw_constraint = 0.01
+		self.cumulative_online_errors = {}
+		self.error_per_frame = {}
+		self.error_metric = {}
+		self.prev_error_per_frame = {}
 
 		#dynamic time warping cost information for determining which (if any) task to update
 		self.task_final_cost = {}
@@ -48,12 +53,65 @@ class Process(object):
 
 		#threshold for determining that a new task is unique (determined through experimentation among many task comparisons)
 		self.final_dtw_constraint = 0.05		#constraint used on dtw that was used to get the unique task threshold
-		self.unique_task_threshold = 3.353
+		self.unique_task_threshold = 1.79 			#1.79 from personal_data collection, ~3.353 from giver vs. receiver collection
 
 	def onlineUpdate(self,curr_data,data_object,complete=False):
 
+		def getErrorMetric(epf,p=None,i=None,d=None,soft=None,last_epf=None,all_err=None):
+			'''
+			epf = error_per_frame = cumulative_error/current_frame
+			p = number of known tasks, also the value of the proportional gain 
+			all_err = cumulative error for integral control
+			soft = error to softthreshold within 
+			last_epf = previous value of epf for derivative control 
+
+
+			Em = P*epf + D*(epf-last_epf) + I(all_err)
+			metric = max(1,Em), or if p,last_epf,and all_err are left as default None then epf is returned
+			'''
+			P = p 		#proportional gain
+			D = d		#derivative gain
+			I = i		#integral gain
+
+			Em = 0
+			control_terms = 0
+			#print 'epf = ', epf
+			#Proportional error addition
+			if p != None: 
+				if soft != None: 
+					Em += P*(epf-soft-1)
+				else:
+					Em += P*(epf-1)
+				#print 'prop Em = ', Em
+			else: 
+				#print 'p = None'
+				control_terms += 1
+
+			#Derivative error addition
+			if last_epf != None:
+				Em += D*(epf-last_epf)
+				#print 'deriv Em = ', Em
+			else: 
+				#print 'last epf = none'
+				control_terms += 1
+
+			#Integral error addition
+			if all_err != None: 
+				Em += I*all_err
+				#print 'integral Em = ', Em
+			else:
+				#print 'all err = none'
+				control_terms += 1
+
+			#if no P,I,or D, return the error per frame alone
+			if control_terms == 3: 
+				Em = epf
+
+			metric = max(1.0,Em)
+			return float(metric)
+
 		task_check_order = np.arange(self.known_task_count)		#can maybe do something smart here
-		print 'Task check order: ', task_check_order
+		#print 'Task check order: ', task_check_order
 		#print task_check_order, self.known_tasks
 		for t_id in task_check_order: 
 			#use the new piece of data to get percent complete for each task model, also update the mixedRayleigh associated with each task 
@@ -61,24 +119,73 @@ class Process(object):
 			pct_complete,new_mixed = tid_task.getCurrentLabel(curr_data,data_object,self.curr_frame_count,mixed=self.mixed[t_id],kNN_number=self.kNN_number,complete_threshold=self.complete_threshold)
 			
 			#determine how likely each task is to be the current task by computing dynamic time warping cost between the curr_labels and the expected path at this point
-			if self.curr_frame_count > self.min_frames_for_probability: 
-				self.task_online_costs[t_id] = task_tools.getTaskMetric(tid_task.path,tid_task.times,tid_task.curr_labels,tid_task.curr_mixed_position,tid_task.frames_since_state_change,constraint=self.online_dtw_constraint)
+			cost_threshold = 2
+			'''if self.curr_frame_count > self.min_frames_for_probability: 
+				self.task_online_costs[t_id] = max(1.0,task_tools.getTaskMetric(tid_task.path,tid_task.times,tid_task.curr_labels,tid_task.curr_mixed_position,tid_task.frames_since_state_change,constraint=self.online_dtw_constraint)-cost_threshold)
+				if self.task_online_costs[t_id]>1.0: 
+					self.task_online_costs[t_id] = 0.5*self.task_online_costs[t_id]**2'''
+
+			#add current online error
+			expected_pct = 100*self.curr_frame_count/float(np.sum(self.known_tasks[t_id].times))
+			#print 'expected,actual : ', expected_pct,pct_complete
+			if len(self.cumulative_online_errors) < self.known_task_count: 
+				self.cumulative_online_errors[t_id] = 0.0625*np.abs(expected_pct-pct_complete)**2
+				self.prev_error_per_frame[t_id] = 0
+				self.error_per_frame[t_id] = self.cumulative_online_errors[t_id]/float(self.curr_frame_count)
+			else: 
+				self.cumulative_online_errors[t_id] += 0.0625*np.abs(expected_pct-pct_complete)**2
+				self.prev_error_per_frame[t_id] = deepcopy(self.error_per_frame[t_id])
+				self.error_per_frame[t_id] = self.cumulative_online_errors[t_id]/float(self.curr_frame_count)
+
+			#print 'cumm_error: ', self.cumulative_online_errors
+			#self.error_per_frame = self.cumulative_online_errors / float(self.curr_frame_count)
+
 
 			self.task_pct_complete[t_id] = pct_complete 
 			self.mixed[t_id] = new_mixed
 			#print 'pct_complete: ', self.task_pct_complete[t_id]
 		
-		if self.curr_frame_count > self.min_frames_for_probability and self.known_task_count>1: 
-			total_costs = np.sum(self.task_online_costs.values())
+		if self.curr_frame_count > self.min_frames_for_probability and self.known_task_count>0: 
+			#total_costs = np.sum(self.task_online_costs.values())
+			total_costs = self.known_task_count +1
 			pct_complete = 0
-			if total_costs > 0: 
+			if total_costs > self.known_task_count: 
+				self.error_metric = {}
 				temp = {}
+				'''newer method'''
 				for t_id in task_check_order: 
-					temp[t_id] = 1-self.task_online_costs[t_id]/total_costs	 
+					
+					P = self.known_task_count
+					I = 0.02
+					D = 100
+					max_soft = 10
+					#time_at_4 = 30.0
+					#soft_thresh = max_soft*np.exp((np.log(4/max_soft)/time_at_4)*self.curr_frame_count)
+					soft_thresh = max_soft*np.exp(-0.0305*self.curr_frame_count)
+					
+					last_err = self.prev_error_per_frame[t_id]
+					cumulative_error = self.cumulative_online_errors[t_id]
+
+					self.error_metric[t_id] = getErrorMetric(epf=self.error_per_frame[t_id],p=P,i=I,d=D,soft=soft_thresh,last_epf=last_err, all_err=cumulative_error)
+					#print self.error_metric[t_id]
+
+					temp[t_id] = 1/self.error_metric[t_id]
+				total_costs = np.sum(temp.values())
+				for t_id in task_check_order: 
+					self.task_online_probability[t_id] = temp[t_id]/(1.*total_costs)
+				'''new method 
+				for t_id in task_check_order: 
+					temp[t_id] = 1/(1.*self.task_online_costs[t_id])
+				total_costs = np.sum(temp.values())
+				for t_id in task_check_order: 
+					self.task_online_probability[t_id] = temp[t_id]/(1.*total_costs)'''
+				'''original method
+				for t_id in task_check_order: 
+					temp[t_id] = 1-(self.task_online_costs[t_id]/max(1.0*total_costs,1.0*self.known_task_count))
 				total_costs = np.sum(temp.values())
 				for t_id in task_check_order:
-					self.task_online_probability[t_id] = temp[t_id]/total_costs
-				print 'task online probabilities: ', self.task_online_probability, self.task_online_costs, total_costs
+					self.task_online_probability[t_id] = temp[t_id]/(1.0*total_costs)
+				#print 'task online probabilities: ', self.task_online_probability, self.task_online_costs, total_costs'''
 				for t_id in task_check_order: 
 					pct_complete += self.task_online_probability[t_id]*self.task_pct_complete[t_id]
 			else: 
@@ -90,42 +197,43 @@ class Process(object):
 		curr_pct_complete = pct_complete 
 		return curr_pct_complete
 
-	def updateKnownTasks(self,data_object): 
+	def updateKnownTasks(self,data_object,compute_type='median'): 
 		#compare latest features to the example task inds features to get median cost from Dynamic Time Warping
 		#for each task 
 		task_check_order = np.arange(self.known_task_count)
 		new_inds = np.arange(data_object.num_vectors-self.curr_frame_count,data_object.num_vectors)
 		for t_id in task_check_order: 
 			example_inds = self.known_tasks[t_id].task_example_inds
-			self.task_final_cost[t_id] = self.compareTasks(data_object,example_inds,new_inds,self.known_tasks[t_id].feature_inds)
+			self.task_final_cost[t_id] = self.compareTasks(data_object,example_inds,new_inds,self.known_tasks[t_id].feature_inds,compute_type=compute_type)
 		min_cost = np.min(self.task_final_cost.values())
-		print 'Min Cost: ', min_cost
+		#print 'Min Costs: ', self.task_final_cost
 
 		#if min_cost is less than the cost threshold, update the corresponding task, else create a new task 
-		if min_cost < self.unique_task_threshold: 
+		if min_cost*0.66 < self.unique_task_threshold: 
 			for t_id in task_check_order: 
 				if self.task_final_cost[t_id] == min_cost: 
-					print 'Task', t_id, 'updated.'
 					self.known_tasks[t_id].update(data_object,[new_inds[0],data_object.num_vectors])
 					self.task_history.append(t_id)
+					#print 'Task', t_id, 'updated.\n'
 					break
 		else: 
-			print 'new task added.'
 			self.known_task_count += 1
 			self.known_tasks[self.known_task_count-1] = Task(data_object,[new_inds[0],data_object.num_vectors])
 			self.mixed[self.known_task_count-1] = rayleigh.MixedRayleigh(self.known_tasks[self.known_task_count-1])
 			task_check_order = np.arange(self.known_task_count)
 			self.task_history.append(self.known_task_count-1)
+			#print 'New Task '+str(self.known_task_count-1)+' added.\n'
 		#reset key task information 
 		
 		for t_id in task_check_order: 
 			self.known_tasks[t_id].curr_labels = []		#the rest of the onlineUpdate specific class variables are updated based on len(curr_labels) == 0
 
 		self.curr_frame_count = 0		#reset number of frames in the new task
+		self.cumulative_online_errors = {}
 		return
 			
 
-	def compareTasks(self,data_object,example_inds,new_inds,feature_inds): 
+	def compareTasks(self,data_object,example_inds,new_inds,feature_inds,compute_type='median'): 
 		#collect example data from the data object
 		example_data = data_object.all_features[example_inds,:]
 		example_data = example_data[:,feature_inds]
@@ -137,12 +245,15 @@ class Process(object):
 		#perform dynamic time warping on each feature and take the median of the cost associated with each feature
 		for i in np.arange(len(feature_inds)): 
 			path,costs[i] = task_tools.basisTimeWarp(example_data[:,i],new_data[:,i],constraint=self.final_dtw_constraint)
-		return np.median(costs)
-
+		if compute_type[0] == 'm':
+			result = np.median(costs)
+		elif compute_type[0] == 'a':
+			result = np.mean(costs)
+		return result
 
 
 class Task(object): 
-	def __init__(self, data_object, curr_extrema=[0,10], k=3, basis_dim=2):
+	def __init__(self, data_object, curr_extrema=[0,10], k=3, basis_dim=2,first_task=False):
 		'''
 		Purpose: 
 
@@ -162,15 +273,22 @@ class Task(object):
 				U[:,ind] = assign.stretchBasisCol(col)
 			return labels, U
 
-		#onlineUpdate related
+		####onlineUpdate related
 		self.feature_inds = data_object.feature_inds					#features of data_object.all_features that are most relevant to this task
-		self.data_inds = np.arange(curr_extrema[0],curr_extrema[1])		#tasks are only initialized if it has been determined that a new task model is necessary
-		self.task_example_inds = np.arange(curr_extrema[0],curr_extrema[1])	#to be used for comparison to future tasks
+
+		# if this is the initialization task of the Process object, then the data inds should be the 0th to #frames-in-task indices, else the input data_object will be the "user" object that only has data_vectors added, so there won't be an issue with using the number of vectors in the object as a reference. This could be changed in the future so that the input data_object is always this "user", but for the first task, the user must have already been initialized with all data and the curr_extrema should be changed to be 0:user.num_vectors anyways. 
+		if first_task: 
+			self.data_inds = np.arange(curr_extrema[1]-curr_extrema[0])
+		else:
+			v_in_data_object = data_object.num_vectors 
+			vectors_added = curr_extrema[1]-curr_extrema[0]
+			self.data_inds = np.arange(v_in_data_object-vectors_added,v_in_data_object)		#tasks are only initialized if it has been determined that a new task model is necessary
+		self.task_example_inds = self.data_inds	#to be used for comparison to future tasks
 		self.curr_labels = []
 		
 							
 
-		#task related
+		####task related
 		self.path = [0,1,2,1,0]				#list of states that the task follows
 		self.times = [10,40,100,10,20]		#expected number of frames for the correspondingly indexed path state
 		self.states = {}					#dictionary {<state_number>: State instance}
@@ -280,9 +398,12 @@ class Task(object):
 		self.times = [int(x) for x in list(times_avg)]
 		self.path = path_choice 
 
-		self.data_inds = np.hstack((self.data_inds,np.arange(curr_extrema[0],curr_extrema[1])))
+		#update data_inds 
+		v_in_data_object = data_object.num_vectors 
+		vectors_added = curr_extrema[1]-curr_extrema[0]
+		self.data_inds = np.hstack((self.data_inds,np.arange(v_in_data_object-vectors_added,v_in_data_object)))
 
-		u = self.printTaskDef()
+		#u = self.printTaskDef()
 		return
 
 	def getCurrentLabel(self,new_data,data_object,curr_frame_count,mixed,kNN_number=20,complete_threshold=80.0): 
@@ -440,7 +561,7 @@ class Task(object):
 
 	def getStateInfo(self): 
 		G = np.zeros((self.num_states,2)) 		#[mean, std]
-		print 'stateshape: ', G.shape, 'numstates: ', self.num_states
+		#print 'stateshape: ', G.shape, 'numstates: ', self.num_states
 		c = np.zeros(self.num_states)
 		tpoints = 0
 		for s in self.states: 

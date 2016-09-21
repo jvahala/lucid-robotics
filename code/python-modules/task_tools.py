@@ -195,37 +195,40 @@ def printMinCosts(subspace1,subspace2_group,col1=2,constraint=0.75,window=3):
 		print item 
 	return costs_list
 
-def compareFeatureCosts(data_obj1,data_obj2,starts,feature,numtasks=10,constraint=0.05):
+def compareFeatureCosts(data_obj1,data_obj2,starts1,starts2,feature,numtasks=10,constraint=0.05):
 	'''
 	Purpose: 
 	creates a grid of task to task comparisons colored based on the strength of the costs from DTW. One half of the diagonal represents the inter-task-type comparisons (ie receiver task 0 vs receiver task 1), and the alternate half of the diagonal reprsents the contra-task-type comparisons (ie receiver task 0 vs giver task 1)
 
 	'''
 	#define all the task bases 
-	relevant_feature = data_obj1.feat_array[:,feature]
-	irrelevant_feature = data_obj2.feat_array[:,feature]	#its a dumb name, semi-ignore the name
+	feature_inds = data_obj1.feature_inds
+	data1_features = data_obj1.all_features[:,feature_inds]
+	data2_features = data_obj2.all_features[:,feature_inds]	#its a dumb name, semi-ignore the name
+	relevant_feature = data1_features[:,feature]
+	irrelevant_feature = data2_features[:,feature]
 	R = {}
 	G = {}
 	for i in np.arange(numtasks):
-		ri = relevant_feature[starts[i]:starts[i+1]]
-		gi = irrelevant_feature[starts[i]:starts[i+1]]
+		ri = relevant_feature[starts1[i]:starts1[i+1]]
+		gi = irrelevant_feature[starts2[i]:starts2[i+1]]
 		R[i] = ri.reshape(len(ri),1)
-		G[i] = gi.reshape(len(ri),1)
+		G[i] = gi.reshape(len(gi),1)
 
 	costmap = np.zeros((numtasks,numtasks))
-	for key,r in R.iteritems(): 
-		for c,rc in R.iteritems(): 
-			if c>key: 
+	for i,r in R.iteritems(): 
+		for j,rc in R.iteritems(): 
+			if j>i: 
 				path,cost = basisTimeWarp(r,rc,constraint=constraint)
-				costmap[key,c] = cost 
-		for d,g in G.iteritems(): 
-			if d>=key: 
+				costmap[i,j] = cost 
+		for k,g in G.iteritems(): 
+			if k>=i: 
 				path,cost = basisTimeWarp(r,g,constraint=constraint)
-				costmap[d,key] = cost
+				costmap[k,i] = cost
 
 	return costmap 
 
-def plotCostMap(data_obj1,data_obj2,starts,endtype='median',numtasks=10,constraint=0.05,colormap='cool',threshold=True):
+def plotCostMap(data_obj1,data_obj2,starts1,starts2,endtype='median',numtasks=10,constraint=0.05,colormap='cool',threshold=True,plot=True):
 	import matplotlib.cm as cm 
 	import matplotlib.pyplot as plt 
 	my_cmap = cm.get_cmap(colormap)
@@ -233,7 +236,7 @@ def plotCostMap(data_obj1,data_obj2,starts,endtype='median',numtasks=10,constrai
 	num_features = 6
 	costmaps = ['']*num_features 
 	for i in range(num_features): 
-		costmaps[i] = compareFeatureCosts(data_obj1,data_obj2,starts,i,numtasks,constraint)
+		costmaps[i] = compareFeatureCosts(data_obj1,data_obj2,starts1,starts2,i,numtasks,constraint)
 		print 'feature', i, 'complete'
 	if endtype == 'avg':
 		costmap = np.mean(costmaps,axis=0)
@@ -250,17 +253,20 @@ def plotCostMap(data_obj1,data_obj2,starts,endtype='median',numtasks=10,constrai
 	x = np.arange(numtasks+1)
 	X,Y = np.meshgrid(x,x)
 
-	plt.pcolor(X,Y,costmap,cmap=my_cmap)
-	cbar = plt.colorbar(ticks=[])
-	#plt.gca().invert_yaxis()
-	plt.title('Task Comparison Matrix - receiver vs. giver tasks')
-	plt.yticks(np.arange(numtasks)+0.5,range(numtasks))
-	plt.xticks(np.arange(numtasks)+0.5,range(numtasks))
-	plt.ylabel('Comparison Task Number')
-	plt.xlabel('Base Task Number')
+	if plot: 
+		plt.pcolor(X,Y,costmap,cmap=my_cmap)
+		cbar = plt.colorbar(ticks=[])
+		#plt.gca().invert_yaxis()
+		plt.title('Task Comparison Matrix - receiver vs. giver tasks')
+		plt.yticks(np.arange(numtasks)+0.5,range(numtasks))
+		plt.xticks(np.arange(numtasks)+0.5,range(numtasks))
+		plt.ylabel('Comparison Task Number')
+		plt.xlabel('Base Task Number')
 
 	print costmap 
 	return costmap 
+				
+
 
 def getTaskMetric(path,times,current_labels,position,frames_since_state_change,constraint=0.05):
 	estimated_path = createPathObject(path,times,position,frames_since_state_change)
@@ -281,18 +287,78 @@ def createPathObject(path,times,position,frames_since_state_change):
 			break
 	return full
 
+def getAllCostmaps(txtnames,kinectDict,startsDict,numtasks=8):
+	all_costmaps = {}
+	for i in np.arange(len(txtnames)):
+		for j in np.arange(len(txtnames)):
+			if i == j: 
+				continue
+			type1,type2 = txtnames[i],txtnames[j]
+			ij = str(i)+str(j)
+			all_costmaps[ij] = plotCostMap(kinectDict[type1],kinectDict[type2],startsDict[type1],startsDict[type2],numtasks=numtasks,threshold=False,plot=False)
+	return all_costmaps
+
+def getMedianComparisons(costmap):
+	same_vals,diff_vals = [],[]
+	for i,row in enumerate(costmap):
+		for j,item in enumerate(row):
+			if j > i:
+				same_vals.append(item)
+			else: 
+				diff_vals.append(item)
+	median_same = np.median(same_vals)
+	median_diff = np.median(diff_vals)
+	return median_same,median_diff
+
+def getMedianComparisonsDict(all_costmaps):
+	comparison_dict = {}
+	for k,v in all_costmaps.iteritems():
+		same,diff = getMedianComparisons(v)
+		comparison_dict[k] = [same, diff]
+	return comparison_dict
+
+def getGammaFitRV(data):	# deprecated due to seaborn being awesome
+	import scipy.stats as stats 
+	fit_alpha,fit_loc, fit_beta = stats.gamma.fit(data)
+	rv = stats.gamma(fit_alpha,fit_loc,fit_beta)
+	return rv 
+
+def plotGammaRVs(datas,labels): 
+	import matplotlib.pyplot as plt
+	for i,data in enumerate(datas): 
+		max_val = np.amax(data)
+		x = np.linspace(0,30,100)
+		rv = getGammaFitRV(data)
+		y = rv.pdf(x)*len(data)
+		plt.plot(x,y,'-',label=labels[i])
+	plt.legend()
+	plt.grid(True)
+
+def histAndGammaPlot(datas,labels):
+	import seaborn as sns 
+	import scipy.stats as stats
+	import matplotlib.pyplot as plt
+	fig = plt.figure(1)
+	ax = plt.subplot(111)
+	fit_intersect = [1.79,0.062]
+	sns.set_style(style='whitegrid',rc={"lines.linewidth": 0.5})
+	sns.set_context(context="paper")
+	sns.color_palette(palette="Paired")
+	sns.distplot(datas[0],kde=False,fit=stats.gamma,label='Same')
+	sns.distplot(datas[1],kde=False,fit=stats.gamma,label='Different')
+	sns.despine(trim=True)
+	plt.legend()
+	ax.annotate('1.79', xy=(fit_intersect[0], fit_intersect[1]), color='gray',xytext=(7, 0.65),arrowprops={'arrowstyle': '-|>','color':'gray'})
+	#ax.text(fit_intersect[0],fit_intersect[1]+0.03,fit_intersect[0],color='gray')
+	plt.title('Intertask Comparison by Median DTW Costs')
+	plt.xlabel('Dynamic Time Warping Cost')
+
+	plt.show()
+
+
 
 def main(): 
-	p1,p2 = [0,1,2,3,4,3,2,1],[3,2,5,9,1]
-	t1,t2 = [9]*8,[5,10,15,20,5]
-
-	b = 0
-	frames = 30
-
-	print createPathObject(p1,t1,b,frames)
-	print createPathObject(p2,t2,b,frames)
-
-
+	pass
 
 
 

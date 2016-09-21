@@ -31,7 +31,7 @@ def initialTask(idnum='4',initTaskNum=0):
 
 	return dummy_receiver,dummy_giver,starts,user,task
 
-def play(): 
+def initialize(): 
 	#setup initialization variables
 	userID = '4'
 	initTaskNum = 0
@@ -45,6 +45,10 @@ def play():
 	#define a process
 	evolution = process.Process(task)
 
+	return dummy_receiver,dummy_giver,starts,user,evolution
+
+def play(dummy_receiver,dummy_giver,starts,user,evolution): 
+	
 	#perform online update process
 	#for each new data element the current task 
 

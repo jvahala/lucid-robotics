@@ -30,3 +30,22 @@ def shortenfile(filename,lines,numlines):
 	with open(filename,'w') as f: 
 		for i in range(numlines):
 			f.write(lines[i])
+
+def writeFileFromDictionary(filename,lineDict):
+	''' write to each line: lineDict<key> \t lineDict<values>[0] \t [1] .... \t [-1] '''
+	with open(filename,'w') as f: 
+		for k,v in lineDict.iteritems():
+			new_line = str(k)
+			for value in v: 
+				new_line += '\t'+str(value)
+			f.write(new_line+'\n')
+
+def writeDictofArraysFile(arrayDict,preamble='costmap_',folderpath='/Users/vahala/Desktop/Wisc/LUCID/josh-data/DTWcostmaps/',extension='.txt'): 
+	for k,v in arrayDict.iteritems():
+		filename = folderpath+preamble+k+extension
+		with open(filename,'w') as f: 
+			for row in v: 
+				f.write(str(row)+'\n')
+
+
+

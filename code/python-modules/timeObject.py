@@ -33,10 +33,18 @@ class timeObject(object):
 		ss, ms = string.split(ss,'.')
 		MM = int(MM)
 		DD = int(DD)
+		if '.' in hh: 
+			hh = string.split(hh,'.')[0]
 		hh = int(hh)
 		mm = int(mm)
+		
 		ss = int(ss)
+		if len(ms) > 3: 
+			ms = ms[:3]
 		ms = int(ms)
+		if hh > 24: 
+			hh = 0
+
 		return MM, DD, hh, mm, ss, ms
 
 	def convertToDatetime(self,date_str,time_str):

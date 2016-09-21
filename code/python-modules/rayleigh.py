@@ -44,15 +44,15 @@ class MixedRayleigh(object):
 		states_left = len(task_obj.path)-position 
 		#convert the expected state times into positions on the default scale, 0 -> 0, 10 -> 10/sum(times[position:])*self.scale, 5 -> 0+10+5 / sum(times[position:]) * self.scale
 		means = [0]+[(x+sum(task_obj.times[position:i]))/float(sum(task_obj.times[position:]))*self.scale for i,x in enumerate(task_obj.times) if i>=position]
-		print 'transition times/mean values: ', means
+		#print 'transition times/mean values: ', means
 		sigmas = getSigmas(means)
-		print 'sigmas; ', sigmas
+		#print 'sigmas; ', sigmas
 		#build the rayleigh distribution objects
-		print 'states left: ', states_left
+		#print 'states left: ', states_left
 		for k in np.arange(states_left): 
 			key = k 
 			value = Rayleigh(sigmas[1+k])
-			print 'k/v: ', key,value.sigma
+			#print 'k/v: ', key,value.sigma
 			self.dists[key] = value
 
 
@@ -73,15 +73,15 @@ class MixedRayleigh(object):
 
 		states_left = len(path)-position
 		means = [0]+[(x+sum(times[position:i]))/float(sum(times[position:]))*self.scale for i,x in enumerate(times) if i>=position]
-		print 'transition times/mean values: ', means
+		#print 'transition times/mean values: ', means
 		sigmas = getSigmas(means)
-		print 'sigmas; ', sigmas
+		#print 'sigmas; ', sigmas
 		#build the rayleigh distribution objects
-		print 'states left: ', states_left
+		#print 'states left: ', states_left
 		for k in np.arange(states_left): 
 			key = k 
 			value = Rayleigh(sigmas[1+k])
-			print 'k/v: ', key,value.sigma
+			#print 'k/v: ', key,value.sigma
 			self.dists[key] = value
 
 	def proportionate(self,frame_count,proportion_scalar=10.0):
@@ -124,5 +124,44 @@ class MixedRayleigh(object):
 		else: 
 			return -1
 
+def plotMixed(mixed):
+	import matplotlib.pyplot as plt
+	import seaborn as sns 
+	sns.set_context("paper")
+
+	ax =plt.subplots()
+
+	path = mixed.task.path 
+	times = mixed.task.times 
+	points = [4.1, 26, 41, 57, 79]
+	example_point = 13.3
+	colors = ['#7ef4cc','#0652ff','k']
+	labs = ['Current State','Next','Third','Fourth','Fifth']
+	markers = ['s','o','^']
+	x = np.linspace(0,mixed.scale,200)
+
+	for i,dist in mixed.dists.iteritems():
+		y = dist.pdf(x)
+		plt.plot(x,y,color=colors[path[i]])
+		if i in [1,2,3]:
+			plt.plot([points[i]],[dist.pdf(points[i])],marker=markers[path[i]],color=colors[path[i]],label='State '+str(path[i]))
+		else: 
+			plt.plot([points[i]],[dist.pdf(points[i])],marker=markers[path[i]],color=colors[path[i]])
+		if i == 0: 
+			plt.text(points[i]+1.3,dist.pdf(points[i]),labs[i],color=colors[path[i]])
+		else:
+			plt.text(points[i],dist.pdf(points[i])+0.004,labs[i],color=colors[path[i]])
+		if i == 1: 
+			plt.annotate('current time', xy=(example_point,dist.pdf(example_point)+0.005), xytext=(example_point+4,dist.pdf(example_point)+0.05),fontsize=12,arrowprops=dict(arrowstyle="simple",fc="0.4", ec="none",connectionstyle="arc3,rad=0.3"))
+			plt.plot(example_point,dist.pdf(example_point),color = 'k',marker='*')
+		else:
+			plt.plot([example_point],dist.pdf(example_point),color = 'k',marker='*')
+		plt.legend()
+
+	plt.xlabel('Time Since Last State Change (frames)')
+	plt.ylabel('Distribution Value')
+
+
+	
 
 

@@ -126,11 +126,11 @@ def _3dStateDists():
 	counts0 = counts[0:3]
 
 	#3state-dists
-	plt.figure(1)
-	ass.plotClassDists(g0,counts0)
-	plt.yticks([])
-	plt.xlabel('basis value')
-	plt.ylabel('probability measure')
+plt.figure(1)
+assign.plotClassDists(g0,counts0)
+plt.yticks([])
+plt.xlabel('Basis value')
+plt.ylabel('Scaled Probability Measure')
 	plt.title('Proportional 3-state Distributions')
 
 	#3state-dists-added
@@ -145,7 +145,6 @@ def _3dStateDists():
 
 
 def OneBasisThreeHandover(): 
-
 	file_name = '/Users/vahala/Desktop/Wisc/LUCID/Handover-Data/p2/p2-logs/p2-3.txt'
 	data4 = test.setup('4',file_name)
 	data5 = test.setup('5',file_name)
@@ -235,5 +234,7 @@ def hcic16Summary():
 	
 	visualize.plotMovie3d(data_names,data_input,label_input,label_labels)
 	#removed deletion of the individual frame images and only allowed legend on first frame then shaped them in ppt. 
+
+def aaai-summary()
 
 
