@@ -497,6 +497,20 @@ def plotQbase(qbases_k, qbases_uk):
 # 2. define: task_plan = {task1:[iter1,iter2,...],task2:[iter1,iter2], ...}
 # 2. run:	evolution = initializeEvolution(taskDictUsers,taskDictStarts,userID=xxx,task_plan)
 
+'''Process for running an evaluation
+1. define starts and task dicts, midpoint has been determined by sight and with the helper functions in this module
+taskDictUsers,taskDictStarts = defineTaskDicts()
+2a. If you want to do a single user evaluation, run: 
+userID = #choose a number 
+pcts_known,pcts_unknown,update_counts_known,update_counts_unknown = runSingleUser(taskDictUsers,taskDictStarts,userID,max_unique=10,max_iters=10,average_over=50,seedint=21)	#set these defaults appropriately
+### 2a-i if you want to run all single users, (note you will need to change defaults for runSingleUser within this function)
+pct_known,pct_unknown,c_known,c_unknown=getWhatIWant(taskDictUsers,taskDictStarts)
+2b. If you want to compare across users, run: 
+out_pcts, out_add_rate = testAgainstUsers(taskDictUsers,taskDictStarts,iterations=10,seedint=1)
+3a. plot 2a-i: 
+3b. plot 2b: plotInterTask(out_pcts, out_add_rate)
+
+'''
 
 
 # mdpt = np.array([-0.45,0.13, 2.05])
