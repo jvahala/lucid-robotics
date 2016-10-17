@@ -126,6 +126,19 @@ def runningAvg(vector,N):
 	'''
 	return np.convolve(vector, np.ones(N,)/(N*1.0))[(N-1):]
 
+def softmax(x,rescale_=False): 
+	if rescale_: 
+		x_ = rescale(x)
+	else: 
+		x_ = x
+	expx = np.exp(-1.0*np.array(x_))		#take exponential of the -x(i) values in x 
+	total = np.sum(expx)	#for use in the denominator
+	return expx/float(total)
+
+def rescale(x,max_=10):
+	x_scaled = [k/400*float(max_) for k in x]
+	return x_scaled
+
 def gaussiansMeet(mu1, std1, mu2, std2): 
 	'''
 	Purpose: 
@@ -564,4 +577,5 @@ def plotFeaturesTogether(data_obj,col,starts,tasknums):
 		print colors[i]
 		plt.plot(np.arange(b-a),data_obj.feat_array[a:b,col],'-',color=colors[i],label='task'+str(t))
 	plt.legend()
+
 

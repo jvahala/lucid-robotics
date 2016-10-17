@@ -55,7 +55,7 @@ class Process(object):
 		self.final_dtw_constraint = 0.05		#constraint used on dtw that was used to get the unique task threshold
 		self.unique_task_threshold = 1.79 			#1.79 from personal_data collection, ~3.353 from giver vs. receiver collection
 
-	def onlineUpdate(self,curr_data,data_object,complete=False):
+	def onlineUpdate(self,curr_data,data_object,complete=False,softmax_error=True):
 
 		def getErrorMetric(epf,p=None,i=None,d=None,soft=None,last_epf=None,all_err=None):
 			'''
@@ -145,14 +145,15 @@ class Process(object):
 			self.mixed[t_id] = new_mixed
 			#print 'pct_complete: ', self.task_pct_complete[t_id]
 		
-		if self.curr_frame_count > self.min_frames_for_probability and self.known_task_count>0: 
+		if self.curr_frame_count > self.min_frames_for_probability and self.known_task_count > 0: 
 			#total_costs = np.sum(self.task_online_costs.values())
 			total_costs = self.known_task_count +1
 			pct_complete = 0
 			if total_costs > self.known_task_count: 
 				self.error_metric = {}
 				temp = {}
-				'''newer method'''
+
+				#adjust errors using PID to extremify errors further
 				for t_id in task_check_order: 
 					
 					P = self.known_task_count
@@ -170,22 +171,17 @@ class Process(object):
 					#print self.error_metric[t_id]
 
 					temp[t_id] = 1/self.error_metric[t_id]
-				total_costs = np.sum(temp.values())
-				for t_id in task_check_order: 
-					self.task_online_probability[t_id] = temp[t_id]/(1.*total_costs)
-				'''new method 
-				for t_id in task_check_order: 
-					temp[t_id] = 1/(1.*self.task_online_costs[t_id])
-				total_costs = np.sum(temp.values())
-				for t_id in task_check_order: 
-					self.task_online_probability[t_id] = temp[t_id]/(1.*total_costs)'''
-				'''original method
-				for t_id in task_check_order: 
-					temp[t_id] = 1-(self.task_online_costs[t_id]/max(1.0*total_costs,1.0*self.known_task_count))
-				total_costs = np.sum(temp.values())
-				for t_id in task_check_order:
-					self.task_online_probability[t_id] = temp[t_id]/(1.0*total_costs)
-				#print 'task online probabilities: ', self.task_online_probability, self.task_online_costs, total_costs'''
+
+				if softmax_error == False: 
+					total_costs = np.sum(temp.values())
+					for t_id in task_check_order: 
+						self.task_online_probability[t_id] = temp[t_id]/(1.*total_costs)
+				else: 
+					metrics = [self.error_metric[x] for x in range(self.known_task_count)]
+					soft_pcts = utils.softmax(metrics,rescale_=True)
+					for t_id in task_check_order: 
+						self.task_online_probability[t_id] = soft_pcts[t_id]
+
 				for t_id in task_check_order: 
 					pct_complete += self.task_online_probability[t_id]*self.task_pct_complete[t_id]
 			else: 
@@ -398,7 +394,7 @@ class Task(object):
 		self.times = [int(x) for x in list(times_avg)]
 		self.path = path_choice 
 
-		#update data_inds 
+		#update data_inds
 		v_in_data_object = data_object.num_vectors 
 		vectors_added = curr_extrema[1]-curr_extrema[0]
 		self.data_inds = np.hstack((self.data_inds,np.arange(v_in_data_object-vectors_added,v_in_data_object)))
@@ -474,9 +470,9 @@ class Task(object):
 			if curr_position == len(path)-1: 
 				future_states_times = 0
 			else: 
-				future_states_times = np.sum(times[(curr_position+1):])
+				future_states_times = np.sum(times[(curr_position+1):-1])		#the last state in pick and place tasks is typically very short and very quickly completed, so it should be included as a given in the percent complete 
 			#print 'Expected future state time remaining: ', future_states_times
-			total_task_time = np.sum(times)
+			total_task_time = np.sum(np.array(times)[:-1])		#see details for 'future_state_times'
 			percent_remaining = 100*(curr_state_time_remaining+future_states_times)/float(total_task_time)
 			percent_complete = 100 - percent_remaining
 			return percent_complete
@@ -492,8 +488,16 @@ class Task(object):
 			mixed.updateSelf(self.curr_mixed_position)
 
 		#get labeled data with correct rows from the data object and correct task-specific features
-		labeled_data = data_object.all_features[self.data_inds,:]	
-		labeled_data = labeled_data[:,self.feature_inds]
+		all_labeled_data = data_object.all_features[self.data_inds,:]	
+
+		#select a random subset of the labeled data [(min(200,len(all_labeled_data))) points] to keep speed costs
+		max_labeled_data_count = 200
+		if len(all_labeled_data) <= max_labeled_data_count: 
+			labeled_data = all_labeled_data[:,self.feature_inds]
+		else: 
+			labeled_data_selection_inds = np.random.permutation(len(all_labeled_data))[0:max_labeled_data_count]
+			labeled_data = all_labeled_data[labeled_data_selection_inds,:]
+			labeled_data = labeled_data[:,self.feature_inds]
 
 		#pick out the newest data
 		curr_data = new_data[self.feature_inds]
