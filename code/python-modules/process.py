@@ -28,6 +28,7 @@ class Process(object):
 		#percent complete information for each known task (indexed by taskid)
 		self.task_pct_complete = {}		#holds the percent completes for each 
 		self.task_pct_complete[0] = 0.0
+		self.curr_pct_complete_estimate = 0.0 	#probabilistic estimate of percent complete metric
 
 		#probability information that a particular task is being performed online
 		self.task_online_probability = {}
@@ -44,6 +45,8 @@ class Process(object):
 
 		#historical order of tasks - can be used to adjust probabilities of tasks (ie more recent tasks are more likely)
 		self.task_history = [0]	
+		self.max_task_history_to_consider = 30		#number of recent task examples to consider as potential candidates for the new task (set to -1 to use full task history)
+		self.task_check_order = self._determineTaskOrder()		#prioritizes most recently seen tasks - doesnt care for tasks seen long long ago
 
 		#kNN number can be updated according to how many tasks have been completed if wanted
 		self.kNN_number = 20	
@@ -55,11 +58,11 @@ class Process(object):
 		self.final_dtw_constraint = 0.05		#constraint used on dtw that was used to get the unique task threshold
 		self.unique_task_threshold = 1.79 			#1.79 from personal_data collection, ~3.353 from giver vs. receiver collection
 
-	def onlineUpdate(self,curr_data,data_object,complete=False,softmax_error=True):
+	def onlineUpdate(self,curr_data,data_object,complete=False,softmax_error=True,self_correct=True):
 
 		def getErrorMetric(epf,p=None,i=None,d=None,soft=None,last_epf=None,all_err=None):
 			'''
-			epf = error_per_frame = cumulative_error/current_frame
+			epf = error_per_frame = cumulative_error/current_frame (potentially a windowed epf to allow for quicker changes late in a task)
 			p = number of known tasks, also the value of the proportional gain 
 			all_err = cumulative error for integral control
 			soft = error to softthreshold within 
@@ -109,42 +112,41 @@ class Process(object):
 
 			metric = max(1.0,Em)
 			return float(metric)
+	
 
-		task_check_order = np.arange(self.known_task_count)		#can maybe do something smart here
-		#print 'Task check order: ', task_check_order
-		#print task_check_order, self.known_tasks
-		for t_id in task_check_order: 
-			#use the new piece of data to get percent complete for each task model, also update the mixedRayleigh associated with each task 
+		## use the new piece of data to get percent complete for each task model, also update the mixedRayleigh associated with each task
+		for t_id in self.task_check_order:  
 			tid_task = self.known_tasks[t_id]
 			pct_complete,new_mixed = tid_task.getCurrentLabel(curr_data,data_object,self.curr_frame_count,mixed=self.mixed[t_id],kNN_number=self.kNN_number,complete_threshold=self.complete_threshold)
 			
-			#determine how likely each task is to be the current task by computing dynamic time warping cost between the curr_labels and the expected path at this point
+			'''#determine how likely each task is to be the current task by computing dynamic time warping cost between the curr_labels and the expected path at this point
 			cost_threshold = 2
-			'''if self.curr_frame_count > self.min_frames_for_probability: 
+			if self.curr_frame_count > self.min_frames_for_probability: 
 				self.task_online_costs[t_id] = max(1.0,task_tools.getTaskMetric(tid_task.path,tid_task.times,tid_task.curr_labels,tid_task.curr_mixed_position,tid_task.frames_since_state_change,constraint=self.online_dtw_constraint)-cost_threshold)
 				if self.task_online_costs[t_id]>1.0: 
-					self.task_online_costs[t_id] = 0.5*self.task_online_costs[t_id]**2'''
+					self.task_online_costs[t_id] = 0.5*self.task_online_costs[t_id]**2
+			'''
 
-			#add current online error
+			#add current online error (or add new element if a new task has just been added)
 			expected_pct = 100*self.curr_frame_count/float(np.sum(self.known_tasks[t_id].times))
-			#print 'expected,actual : ', expected_pct,pct_complete
+			c = 0.0625
 			if len(self.cumulative_online_errors) < self.known_task_count: 
-				self.cumulative_online_errors[t_id] = 0.0625*np.abs(expected_pct-pct_complete)**2
+				self.cumulative_online_errors[t_id] = c*np.abs(expected_pct-pct_complete)**2
 				self.prev_error_per_frame[t_id] = 0
 				self.error_per_frame[t_id] = self.cumulative_online_errors[t_id]/float(self.curr_frame_count)
 			else: 
-				self.cumulative_online_errors[t_id] += 0.0625*np.abs(expected_pct-pct_complete)**2
+				new_error = c*np.abs(expected_pct-pct_complete)**2
+				self.cumulative_online_errors[t_id] += new_error
 				self.prev_error_per_frame[t_id] = deepcopy(self.error_per_frame[t_id])
-				self.error_per_frame[t_id] = self.cumulative_online_errors[t_id]/float(self.curr_frame_count)
-
-			#print 'cumm_error: ', self.cumulative_online_errors
-			#self.error_per_frame = self.cumulative_online_errors / float(self.curr_frame_count)
-
+				base_epf = self.cumulative_online_errors[t_id]/float(self.curr_frame_count)
+				error_window = 30.0
+				self.error_per_frame[t_id] = (base_epf*error_window+new_error)/(error_window+1)	#essentially, (curr_epf*error_window + new_error)/(frame_window+1), this allows for more change later in a task 
 
 			self.task_pct_complete[t_id] = pct_complete 
 			self.mixed[t_id] = new_mixed
 			#print 'pct_complete: ', self.task_pct_complete[t_id]
 		
+		## if enough frames have passed and a task exists, determine the probability that a particular task is being completed relative to other tasks
 		if self.curr_frame_count > self.min_frames_for_probability and self.known_task_count > 0: 
 			#total_costs = np.sum(self.task_online_costs.values())
 			total_costs = self.known_task_count +1
@@ -154,13 +156,13 @@ class Process(object):
 				temp = {}
 
 				#adjust errors using PID to extremify errors further
-				for t_id in task_check_order: 
+				for t_id in self.task_check_order: 
 					
 					P = self.known_task_count
 					I = 0.02
 					D = 100
 					max_soft = 10
-					#time_at_4 = 30.0
+					#time_at_4 = 30.0		#these two commented lines were used to determine the soft_thresh exponential constant (-0.0305)
 					#soft_thresh = max_soft*np.exp((np.log(4/max_soft)/time_at_4)*self.curr_frame_count)
 					soft_thresh = max_soft*np.exp(-0.0305*self.curr_frame_count)
 					
@@ -174,31 +176,38 @@ class Process(object):
 
 				if softmax_error == False: 
 					total_costs = np.sum(temp.values())
-					for t_id in task_check_order: 
+					for t_id in self.task_check_order: 
 						self.task_online_probability[t_id] = temp[t_id]/(1.*total_costs)
 				else: 
 					metrics = [self.error_metric[x] for x in range(self.known_task_count)]
-					soft_pcts = utils.softmax(metrics,rescale_=True)
-					for t_id in task_check_order: 
+					softmax_alpha = -1/40.0		#this alpha has bee chosen to that reasonable errors in the 50
+					soft_pcts = utils.softmax(np.array(metrics)-np.amin(metrics)/3.0,alpha=softmax_alpha,rescale_=False)
+					for t_id in self.task_check_order: 
 						self.task_online_probability[t_id] = soft_pcts[t_id]
 
-				for t_id in task_check_order: 
-					pct_complete += self.task_online_probability[t_id]*self.task_pct_complete[t_id]
+				if self_correct and np.all(np.array(self.error_metric.values())>200): 
+					print 'in self-correct loop'
+					confusion_pct_addition = 0.5	#amount to add to pct_complete estimate if all errors are bad
+					pct_complete = self.curr_pct_complete_estimate + confusion_pct_addition
+				else: 
+					print 'no self-correction'
+					for t_id in self.task_check_order: 
+						pct_complete += self.task_online_probability[t_id]*self.task_pct_complete[t_id]
 			else: 
 				pct_complete = self.task_pct_complete[self.task_history[-1]]
 		else: 
 			pct_complete = self.task_pct_complete[self.task_history[-1]]
 
 		self.curr_frame_count += 1		#increment the frame count 
-		curr_pct_complete = pct_complete 
-		return curr_pct_complete
+		self.curr_pct_complete_estimate = pct_complete 
+		return pct_complete
 
 	def updateKnownTasks(self,data_object,compute_type='median'): 
 		#compare latest features to the example task inds features to get median cost from Dynamic Time Warping
 		#for each task 
-		task_check_order = np.arange(self.known_task_count)
+
 		new_inds = np.arange(data_object.num_vectors-self.curr_frame_count,data_object.num_vectors)
-		for t_id in task_check_order: 
+		for t_id in self.task_check_order: 
 			example_inds = self.known_tasks[t_id].task_example_inds
 			self.task_final_cost[t_id] = self.compareTasks(data_object,example_inds,new_inds,self.known_tasks[t_id].feature_inds,compute_type=compute_type)
 		min_cost = np.min(self.task_final_cost.values())
@@ -206,7 +215,7 @@ class Process(object):
 
 		#if min_cost is less than the cost threshold, update the corresponding task, else create a new task 
 		if min_cost*0.66 < self.unique_task_threshold: 
-			for t_id in task_check_order: 
+			for t_id in self.task_check_order: 
 				if self.task_final_cost[t_id] == min_cost: 
 					self.known_tasks[t_id].update(data_object,[new_inds[0],data_object.num_vectors])
 					self.task_history.append(t_id)
@@ -216,14 +225,15 @@ class Process(object):
 			self.known_task_count += 1
 			self.known_tasks[self.known_task_count-1] = Task(data_object,[new_inds[0],data_object.num_vectors])
 			self.mixed[self.known_task_count-1] = rayleigh.MixedRayleigh(self.known_tasks[self.known_task_count-1])
-			task_check_order = np.arange(self.known_task_count)
 			self.task_history.append(self.known_task_count-1)
 			#print 'New Task '+str(self.known_task_count-1)+' added.\n'
 		#reset key task information 
 		
-		for t_id in task_check_order: 
+		for t_id in self.task_check_order: 
 			self.known_tasks[t_id].curr_labels = []		#the rest of the onlineUpdate specific class variables are updated based on len(curr_labels) == 0
 
+		self.task_check_order = self._determineTaskOrder()	#update the order in which tasks are checked based on recent history
+		print 'Task Check Order: ', self.task_check_order
 		self.curr_frame_count = 0		#reset number of frames in the new task
 		self.cumulative_online_errors = {}
 		return
@@ -246,6 +256,14 @@ class Process(object):
 		elif compute_type[0] == 'a':
 			result = np.mean(costs)
 		return result
+
+	def _determineTaskOrder(self):
+		'''utility function to determine the task order to check based on the most recent history of seen tasks'''
+		if self.max_task_history_to_consider == -1: 
+			task_history_to_consider = self.task_history 
+		else: 
+			task_history_to_consider = self.task_history[0:min(self.max_task_history_to_consider,len(self.task_history))]
+		return utils.getBackwardsUniqueOrder(self.task_history)
 
 
 class Task(object): 
