@@ -77,7 +77,6 @@ def getNewFeatures(user,data):
 
 	return new_features
 
-
 def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,numtasks_ordered,_plot=True):
 	# go through the ordered taskIDs starting at the relevant starttask number and iterate for the relevant number of tasks
 	'''
@@ -171,7 +170,15 @@ def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,n
 
 			#taskupdate process
 			start = time.clock()
-			evolution.updateKnownTasks(user,compute_type='average')
+			if i >= 1:
+				proper_update = False
+			else: 
+				proper_update = True
+
+			evolution.updateKnownTasks(user,compute_type='average',proper_update=proper_update)
+
+			print 'Task Path: ', evolution.known_tasks[0].path 
+			print 'Task Time: ', evolution.known_tasks[0].times
 			end = time.clock()
 			timings_update.append(end-start)
 			#setup for next task
@@ -223,10 +230,11 @@ def example(kinectDict,startsDict,txtnames,_plot=True):
 	sns.set_style('whitegrid')
 	sns.set_context("paper")
 	sns.set_palette(sns.cubehelix_palette(3, start=2, rot=0.45, dark=0.2, light=.8, reverse=True))
-	types,states,counts = [1,3,8,1,3,8],[2,2,2,4,4,4],[1,1,1,2,2,2]
-	#types,states,counts = [1,7,9,1,7,9],[2,2,2,4,4,4],[1,1,1,1,1,1]
+	#types,states,counts = [1,3,8,1,3,8],[2,2,2,4,4,4],[1,1,1,2,2,2]
+	types,states,counts = [1,7,9,1,7,9],[2,2,2,4,4,4],[1,1,1,1,1,1]
 	#types,states,counts = [1,6,9,1,6,9],[1,1,1,2,2,2],[1,1,1,1,1,1]
-	#types,states,counts = [1,1,1,1,1],[1,1,1,1,1],[1,8,8,8,8]
+	#types,states,counts = [1,1,1,1,1],[1,3,5,2,1],[1,3,3,3,3]
+	#types,states,counts = [1,1],[1,2],[1,4]
 	pcts,tasks,evolution=testRun(kinectDict,startsDict,txtnames,types,states,counts,_plot=_plot)
 	return pcts,tasks
 	plt.show()

@@ -33,12 +33,14 @@ class Process(object):
 		#probability information that a particular task is being performed online
 		self.task_online_probability = {}
 		self.task_online_costs = {}
-		self.min_frames_for_probability = -1
+		self.min_frames_for_probability = 20
 		self.online_dtw_constraint = 0.01
 		self.cumulative_online_errors = {}
 		self.error_per_frame = {}
 		self.error_metric = {}
 		self.prev_error_per_frame = {}
+		self.confusion_pct_addition = 0.5
+		self.error_window = 30.0 
 
 		#dynamic time warping cost information for determining which (if any) task to update
 		self.task_final_cost = {}
@@ -48,8 +50,11 @@ class Process(object):
 		self.max_task_history_to_consider = 30		#number of recent task examples to consider as potential candidates for the new task (set to -1 to use full task history)
 		self.task_check_order = self._determineTaskOrder()		#prioritizes most recently seen tasks - doesnt care for tasks seen long long ago
 
-		#kNN number can be updated according to how many tasks have been completed if wanted
-		self.kNN_number = 20	
+		#kNN number can be updated according to how many tasks have been completed if wanted, this is specific to each task type
+		self.init_kNN_number = 20
+		self.kNN_number = {0:self.init_kNN_number}	
+		self.max_kNN_number = 100
+		self.kNN_increment = 15
 
 		#threshold for determining a task to be in the "complete" phase (ie, robot should continue to end)
 		self.complete_threshold = 80.0
@@ -117,9 +122,9 @@ class Process(object):
 		## use the new piece of data to get percent complete for each task model, also update the mixedRayleigh associated with each task
 		for t_id in self.task_check_order:  
 			tid_task = self.known_tasks[t_id]
-			pct_complete,new_mixed = tid_task.getCurrentLabel(curr_data,data_object,self.curr_frame_count,mixed=self.mixed[t_id],kNN_number=self.kNN_number,complete_threshold=self.complete_threshold)
+			pct_complete,new_mixed = tid_task.getCurrentLabel(curr_data,data_object,self.curr_frame_count,mixed=self.mixed[t_id],kNN_number=self.kNN_number[t_id],complete_threshold=self.complete_threshold)
 			
-			'''#determine how likely each task is to be the current task by computing dynamic time warping cost between the curr_labels and the expected path at this point
+			'''#determine how likely each task is to be the current task by computing dynamic time warping cost between the curr_labels and the expected path at this point - this was too slow
 			cost_threshold = 2
 			if self.curr_frame_count > self.min_frames_for_probability: 
 				self.task_online_costs[t_id] = max(1.0,task_tools.getTaskMetric(tid_task.path,tid_task.times,tid_task.curr_labels,tid_task.curr_mixed_position,tid_task.frames_since_state_change,constraint=self.online_dtw_constraint)-cost_threshold)
@@ -139,7 +144,7 @@ class Process(object):
 				self.cumulative_online_errors[t_id] += new_error
 				self.prev_error_per_frame[t_id] = deepcopy(self.error_per_frame[t_id])
 				base_epf = self.cumulative_online_errors[t_id]/float(self.curr_frame_count)
-				error_window = 30.0
+				error_window = self.error_window
 				self.error_per_frame[t_id] = (base_epf*error_window+new_error)/(error_window+1)	#essentially, (curr_epf*error_window + new_error)/(frame_window+1), this allows for more change later in a task 
 
 			self.task_pct_complete[t_id] = pct_complete 
@@ -159,8 +164,8 @@ class Process(object):
 				for t_id in self.task_check_order: 
 					
 					P = self.known_task_count
-					I = 0.02
-					D = 100
+					I = 0.1		#0.02
+					D = 50			#100
 					max_soft = 10
 					#time_at_4 = 30.0		#these two commented lines were used to determine the soft_thresh exponential constant (-0.0305)
 					#soft_thresh = max_soft*np.exp((np.log(4/max_soft)/time_at_4)*self.curr_frame_count)
@@ -186,11 +191,11 @@ class Process(object):
 						self.task_online_probability[t_id] = soft_pcts[t_id]
 
 				if self_correct and np.all(np.array(self.error_metric.values())>200): 
-					print 'in self-correct loop'
-					confusion_pct_addition = 0.5	#amount to add to pct_complete estimate if all errors are bad
+					#print 'in self-correct loop'
+					confusion_pct_addition = self.confusion_pct_addition	#amount to add to pct_complete estimate if all errors are bad
 					pct_complete = self.curr_pct_complete_estimate + confusion_pct_addition
 				else: 
-					print 'no self-correction'
+					#print 'no self-correction'
 					for t_id in self.task_check_order: 
 						pct_complete += self.task_online_probability[t_id]*self.task_pct_complete[t_id]
 			else: 
@@ -202,7 +207,7 @@ class Process(object):
 		self.curr_pct_complete_estimate = pct_complete 
 		return pct_complete
 
-	def updateKnownTasks(self,data_object,compute_type='median'): 
+	def updateKnownTasks(self,data_object,compute_type='median',proper_update=True): 
 		#compare latest features to the example task inds features to get median cost from Dynamic Time Warping
 		#for each task 
 
@@ -217,7 +222,8 @@ class Process(object):
 		if min_cost*0.66 < self.unique_task_threshold: 
 			for t_id in self.task_check_order: 
 				if self.task_final_cost[t_id] == min_cost: 
-					self.known_tasks[t_id].update(data_object,[new_inds[0],data_object.num_vectors])
+					if proper_update: 
+						self.known_tasks[t_id].update(data_object,[new_inds[0],data_object.num_vectors])
 					self.task_history.append(t_id)
 					#print 'Task', t_id, 'updated.\n'
 					break
@@ -233,9 +239,15 @@ class Process(object):
 			self.known_tasks[t_id].curr_labels = []		#the rest of the onlineUpdate specific class variables are updated based on len(curr_labels) == 0
 
 		self.task_check_order = self._determineTaskOrder()	#update the order in which tasks are checked based on recent history
-		print 'Task Check Order: ', self.task_check_order
+		#print 'Task Check Order: ', self.task_check_order
 		self.curr_frame_count = 0		#reset number of frames in the new task
 		self.cumulative_online_errors = {}
+
+		try: 
+			if self.kNN_number[self.task_history[-1]] <= self.max_kNN_number: 
+				self.kNN_number[self.task_history[-1]] = min(self.max_kNN_number,self.kNN_number[self.task_history[-1]]+self.kNN_increment)	#increment the number of nearest neighbors to use at each update
+		except KeyError: 
+			self.kNN_number[self.task_history[-1]] = self.init_kNN_number
 		return
 			
 
@@ -311,7 +323,9 @@ class Task(object):
 		self.basis_dim = basis_dim					#embedding dimension
 		self.k = k							#number of clusters
 		self.Tdistwidth = 1.5				#start with requiring new points to be within 1.5 standard deviations of each class definition to be considered inside the class
-
+		self.min_state_time = 3				#minimum number of frames a that unique state can half without being absorbed into a nearby state
+		self.max_labeled_data_count = 400	#max labled data to test for kNN
+		
 		labels, U = defineInitBasisLabels(data_object,curr_extrema,self.basis_dim,self.k)
 		self.subspace = utils.Subspace(U)
 		G_acc = self.defineAcceptedStates(U, labels, self.Tdistwidth)
@@ -411,6 +425,13 @@ class Task(object):
 
 		self.times = [int(x) for x in list(times_avg)]
 		self.path = path_choice 
+		#print 'Before Simplification: '
+		#a = self.printTaskDef()
+
+		#once basic path and times update is settled, merge path segments separated by small amount of secondary tasks
+		self.path,self.times = self.simplifyPath(self.path,self.times,self.min_state_time)
+		#print 'After simplification: '
+		#a = self.printTaskDef()
 
 		#update data_inds
 		v_in_data_object = data_object.num_vectors 
@@ -459,7 +480,7 @@ class Task(object):
 				return best
 			else: 
 				return -1
-		def updatePosition(mixed,path,base_state,new_state,count_new,curr_position,position_threshold = 4): 
+		def updatePosition(mixed,path,base_state,new_state,count_new,curr_position,position_threshold = 2): 
 			'''
 			pseudocode: 
 			if base_state == new_state, return count_new = 0, mixed unaltered
@@ -473,10 +494,20 @@ class Task(object):
 				count_new += 1
 				if count_new > position_threshold: 
 					#print 'curr/next = ', curr_position, '/',np.argmax(np.array(path[curr_position:])==new_state), 'new: ', new_state
-					curr_position += np.argmax(np.array(path[curr_position:])==new_state)
-					#print curr_position, 'llllll'
-					if curr_position == 0: 
-						curr_position = len(path)-1		#if there is not corresponding position, then default to the last position
+					# if the count for the new state is acceptable, then if the new state does not exist in the future, shift back to the past and change the necessary time step
+					if new_state in path[curr_position:]: 
+						curr_position_update_amount = np.argmax(np.array(path[curr_position:])==new_state)
+					else: 
+						if curr_position > 0: 
+							if new_state == path[curr_position-1]:
+								curr_position_update_amount = -1
+							else:
+								curr_position_update_amount = 0
+
+					curr_position += curr_position_update_amount
+
+					#if curr_position == 0: 
+					#	curr_position = len(path)-1		#if there is not corresponding position, then default to the last position
 					mixed.updateSelf(curr_position)		#update the mixedRayleigh
 					base_state = new_state
 			#print 'New rayleigh position: ', curr_position, 'base state new: ', base_state
@@ -488,9 +519,9 @@ class Task(object):
 			if curr_position == len(path)-1: 
 				future_states_times = 0
 			else: 
-				future_states_times = np.sum(times[(curr_position+1):-1])		#the last state in pick and place tasks is typically very short and very quickly completed, so it should be included as a given in the percent complete 
+				future_states_times = np.sum(times[(curr_position+1):])		#the last state in pick and place tasks is typically very short and very quickly completed, so it should be included as a given in the percent complete 
 			#print 'Expected future state time remaining: ', future_states_times
-			total_task_time = np.sum(np.array(times)[:-1])		#see details for 'future_state_times'
+			total_task_time = np.sum(np.array(times))		#see details for 'future_state_times'
 			percent_remaining = 100*(curr_state_time_remaining+future_states_times)/float(total_task_time)
 			percent_complete = 100 - percent_remaining
 			return percent_complete
@@ -508,8 +539,8 @@ class Task(object):
 		#get labeled data with correct rows from the data object and correct task-specific features
 		all_labeled_data = data_object.all_features[self.data_inds,:]	
 
-		#select a random subset of the labeled data [(min(200,len(all_labeled_data))) points] to keep speed costs
-		max_labeled_data_count = 200
+		#select a random subset of the labeled data [(min(max_labeled_data_count,len(all_labeled_data))) points] to keep speed costs
+		max_labeled_data_count = self.max_labeled_data_count
 		if len(all_labeled_data) <= max_labeled_data_count: 
 			labeled_data = all_labeled_data[:,self.feature_inds]
 		else: 
@@ -522,7 +553,7 @@ class Task(object):
 
 		#get initial kNN count
 		[knn_label,count_info] = utils.kNN(curr_data,labeled_data,self.labels,k=kNN_number) 
-		#print 'Initial Knn: ', knn_label, count_info 
+		#print 'Initial Knn:               ', knn_label, count_info 
 		#print 'Trouble1: ', curr_frame_count-self.last_state_change_frame
 		proportions = mixed.proportionate(curr_frame_count-self.last_state_change_frame)
 		#print 'MixedRayleigh proportions: ', proportions
@@ -532,9 +563,7 @@ class Task(object):
 			knn_label_updated = knn_label 
 		else: 
 			count_info_updated = updateCounts(count_info,proportions)
-			#print 'After proportions considerations: ', count_info_updated	
 			expectedfrompast = guessFromPast(self.curr_labels)
-			#print 'Guess from past: ', expectedfrompast
 
 			# if labels have been added, used expectedfrompast to weight the most likely candidate
 			if expectedfrompast != -1: 
@@ -546,29 +575,35 @@ class Task(object):
 			# determine new label based on weighted kNN 
 			#print 'After guess from past applied: ', count_info_updated
 			knn_label_updated = count_info_updated[0][np.argmax(count_info_updated[1])]
-		#print 'New knn label chosen: ', knn_label_updated
+		# if curr_frame_count%50 == 0: 
+		# 	print 'Init/New label:      '+str(int(knn_label))+'  /  '+str(knn_label_updated)+'\t position: '+str(self.curr_mixed_position)
 		self.curr_labels.append(knn_label_updated)
 
 		# update mixedRayleigh distribution for the new frame/possibly new base state 
-		new_base_state,new_count_new,new_mixed,new_curr_mixed_position = updatePosition(mixed,self.path,self.base_state,knn_label_updated,self.count_new,self.curr_mixed_position,position_threshold=4)
+		new_base_state,new_count_new,new_mixed,new_curr_mixed_position = updatePosition(mixed,self.path,self.base_state,knn_label_updated,self.count_new,self.curr_mixed_position,position_threshold=1)
 
 		# update global variables
-
 		self.base_state = new_base_state
 		self.count_new = new_count_new
-		if self.curr_mixed_position != new_curr_mixed_position:
+		# if the mixed position has changed to a more advanced state, update to that state naturally, else update to the new state taking into account how many frames have passed in the already completed states
+		if self.curr_mixed_position < new_curr_mixed_position:
 			mixed_position_changed = True
-			self.last_state_change_frame = curr_frame_count
+			self.last_state_change_frame = curr_frame_count - 3 	#assumes the actual state started just a few frames prior to this new changed mixed rayleigh implementation
+			self.curr_mixed_position = new_curr_mixed_position
+		elif self.curr_mixed_position > new_curr_mixed_position: 
+			mixed_position_changed = True
+			self.last_state_change_frame = self.last_state_change_frame-self.frames_since_state_change 	#assumes the previous mixed_position was a fluke and that those states should have actually been given to this new previous mixed_position
 			self.curr_mixed_position = new_curr_mixed_position
 
 		# get the percent complete. if 
 		self.frames_since_state_change = curr_frame_count-self.last_state_change_frame
 		#print 'Frames since state change: ', frames_since_state_change
 		self.percent_complete = taskPercentRemaining(self.path,self.times,self.curr_mixed_position,self.frames_since_state_change)
+		# if curr_frame_count%50==0:
+		# 	print 'Percent complete: \t\t\t'+str(int(self.percent_complete))
+		# 	print '---------'
 
 		return self.percent_complete, new_mixed
-
-
 
 	def printTaskDef(self,str_scaler=0.75): 
 		totalTime = np.sum(self.times)
@@ -680,6 +715,59 @@ class Task(object):
 			else: 
 				times[i] = len(labels[so_far:])
 		return [path, times]
+
+	def simplifyPath(self,path,times,min_time=5): 
+		'''
+		Purpose: 
+		Takes in a path (list of ints) with associated times to stay in each index of the path. If a certain path index is less than the threshold, adjust the path to make sense. 
+		
+		Inputs: 
+		path - list of integer states, e.g., [1,2,1,0,1]
+		times - list of integer frame counts for each state, e.g., [10,40,15,30,6]
+		min_time - integer threshold value for a state to be valid (if the threshold were 7, then the last state in the above example would be fed into the previous state)
+		
+		Look at the times of each index in the path. If a time is less than the threshold, you should get rid of it. In order to get rid of it, look if it has the same bookends. If so, change the state name to the same as the book ends. Else, assume it is the next state. 
+
+		'''
+		path_length = len(path) 
+		revamped_path = []
+		revamped_times = []
+		bad_times = np.array(times)<min_time
+		for i,b in enumerate(bad_times): 
+			if not b: 
+				#if there's no issue with the times value, simply add it
+				revamped_path.append(path[i])
+				revamped_times.append(times[i])
+			else: 
+				#otherwise, assume it is the next state in the path unless you are at the last index, when you should assume it is a part of the previous state
+				try: 
+					revamped_path.append(path[i+1])
+					revamped_times.append(times[i])
+				except IndexError: 
+					revamped_path.append(path[i-1])
+					revamped_times.append(times[i])
+
+		#now that the revamped path has be created, merge touching states
+		final_path = []
+		final_times = []
+		k = 0
+		end_included = False
+		for i,p in enumerate(revamped_path[0:-1]): 
+			if k != i: 
+				continue
+			while k < len(revamped_path)-1 and p == revamped_path[k+1]: 
+				if k == len(revamped_path) - 2: 
+					end_included = True 
+				k+=1
+			k += 1
+			final_path.append(revamped_path[i])
+			final_times.append(sum(revamped_times[i:k]))
+		
+		if not end_included: 
+			final_path.append(revamped_path[-1])
+			final_times.append(revamped_times[-1])
+
+		return final_path,final_times
 
 class State(object): 
 	def __init__(self,mean,std): 
