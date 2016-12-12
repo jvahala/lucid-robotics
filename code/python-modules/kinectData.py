@@ -25,9 +25,11 @@ class kinectData(object):
 	utils
 	'''
 
-	def __init__(self, ID): 
-		self.ID = ID 					#user ID number (0 is first person, 1 is second, etc)
+	def __init__(self, ID, header_string=None): 
+		self.ID = ID 					#user ID number ('0' is first person, '1' is second, etc)
 		self.names_list = []				#list object of the names of the features of data_array
+		if header_line != None: 
+			self.processLine(header_string,header_line=True)	#if a string with the header is input to the kinectData object, initialize the names list
 		self.names_base = []			#base names of the name list (ie ShoulderLeft instead of ShoulderLeft.X)
 		self.data_array = []			#m by n rows represent different timestamps, columns represent raw data elements from names_list
 		self.dataXYZ = np.zeros(1)		#data given as an m by p by 3 where m is number of time stamps, p is number of names_base elements, and 3 is x,y,z
@@ -47,7 +49,7 @@ class kinectData(object):
 		self.feature_inds = -1 			#indicies of the features chosen based on the definition provided in feature_tools.py 
 	
 
-	def addData(self, filename): 
+	def addData(self, filename, filename_is_data=False): 
 
 		'''
 		Purpose: 
@@ -55,6 +57,7 @@ class kinectData(object):
 
 		Inputs: 
 		filename: 				Kinect data file [1st row (0 index) is names of variables, additional rows (>0 index) are data]
+		filename_is_data: 			Bool - if True, then filename is a string of data instead of a filename, if False (default) then the filename is a filename
 
 		Outputs: 
 		self.names_list: 		updated if empty
@@ -68,59 +71,22 @@ class kinectData(object):
 
 		'''
 
-		#define local variables
-		avoid_words = ['timestamp','personID','HandLeftStatus','HandRightStatus']  #define words to not include in names_list
-		temp_names_list = []
-		data_vector = []
-		print 'Adding new data from', filename, '...'
+		if filename_is_data: 
+			data_line = filename
+			_header = False
+			if len(self.names_list) == 0: 
+				_header = True
+			processLine(data_line,header_line=_header)
 
-		with open(filename,'r') as f:
-			'''line_index = 0'''
-			_header = True
-			## begin looking at each line
-			for line in f:
-				processLine(line,_header)
-				_header = False
-				'''word_index = 0
-
-				## begin looking at each word
-				for word in line.split():
-					if line_index == 0 and len(self.names_list)==0: 	#only append to names_list if it is empty
-						if word not in avoid_words:
-							temp_names_list.append(word)
-					elif line_index > 0: 
-						if word_index == 0 and self.date!=word:
-							self.date = word 
-						if word_index == 1: 
-							if len(self.data_array) == 0:
-								self.init_time = timeObject.timeObject(self.date,word)
-							curr_time = timeObject.timeObject(self.date,word)
-							delta_time = curr_time.time - self.init_time.time
-						#if word_index == 2 and word == 'PM': 
-							pass
-						if word_index == 3:
-							if word != self.ID: 					#test that the correct person's data is going into the data_array
-								break
-						if word_index >= 4 and word != 'Tracked' and word != 'Inferred': 
-							data_vector.append(float(word))
-					word_index += 1 								#increment to next word in line
-
-				# before moving to new line, add data_vector to data_array if data was collected or append names_list if line_index == 0
-				if line_index > 0 and len(data_vector) > 0: 
-					if len(self.data_array) == 0: #perform if there is nothing yet in the d
-						self.data_array = data_vector
-					else: 
-						data_vector = np.array(data_vector)
-						self.data_array = np.vstack((self.data_array,data_vector))
-					self.delta_time_array.append(delta_time)
-					self.raw_times_array.append(curr_time.time)
-				elif line_index == 0 and len(self.names_list) == 0: 
-					self.names_list.extend(temp_names_list)
-				data_vector = [] 									#reset the data_vector to collect more data
-				line_index += 1										#increment to next line
-			self.total_time = delta_time
-
-		self.num_vectors = len(self.data_array)'''
+		else: 
+			print 'Adding new data from', filename, '...'
+			with open(filename,'r') as f:
+				'''line_index = 0'''
+				_header = True
+				## begin looking at each line
+				for line in f:
+					processLine(line,header_line=_header)
+					_header = False
 
 		print ' Data added.\n'
 		#end addData()
