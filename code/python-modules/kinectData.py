@@ -75,11 +75,13 @@ class kinectData(object):
 		print 'Adding new data from', filename, '...'
 
 		with open(filename,'r') as f:
-			line_index = 0
-			
+			'''line_index = 0'''
+			_header = True
 			## begin looking at each line
 			for line in f:
-				word_index = 0
+				processLine(line,_header)
+				_header = False
+				'''word_index = 0
 
 				## begin looking at each word
 				for word in line.split():
@@ -95,8 +97,7 @@ class kinectData(object):
 							curr_time = timeObject.timeObject(self.date,word)
 							delta_time = curr_time.time - self.init_time.time
 						#if word_index == 2 and word == 'PM': 
-							#currTime = armyTimeIt(currTime) 		#implement this function
-							#print '' '''continue?'''
+							pass
 						if word_index == 3:
 							if word != self.ID: 					#test that the correct person's data is going into the data_array
 								break
@@ -119,9 +120,62 @@ class kinectData(object):
 				line_index += 1										#increment to next line
 			self.total_time = delta_time
 
-		self.num_vectors = len(self.data_array)
+		self.num_vectors = len(self.data_array)'''
+
 		print ' Data added.\n'
 		#end addData()
+
+	def processLine(self,line,header_line=False): 
+		# process the header line
+		if header_line: 
+			avoid_words = set(['timestamp','personID','HandLeftStatus','HandRightStatus']) 	#these words should not be included in self.names_list
+			self.names_list = [] 
+			for word_index,word in enumerate(line.split()): 
+				if word not in avoid_words: 
+					self.names_list += [word]
+		# else, the line is a piece of data - treat it so
+		else: 
+			# compile the entered data
+			data_list = []
+			for word_index,word in enumerate(line.split()): 
+				# date 
+				if word_index == 0: 
+					self.date = word
+				# time 
+				elif word_index == 1: 
+					if len(self.data_array) == 0: 
+						self.init_time = timeObject.timeObject(self.date,word)
+					curr_time = timeObject.timeObject(self.date,word)
+					delta_time = curr_time.time - self.init_time.time
+				# AM/PM
+				elif word_index == 2: 
+					pass
+				# userID
+				elif word_index == 3: 
+					if word != self.userID: 
+						break
+				# data: 
+				elif (word_index >= 4) and (word != 'Tracked') and (word != 'Inferred'):
+					data_list.append(float(word))
+
+			# adjust all relevant fields
+			if len(data_list)>0: 
+				_data = np.array(data_list)
+				if len(self.data_array) == 0: 
+					self.data_array = np.array(_data)
+				else: 
+					self.data_array = np.vstack((self.data_Array,_data))
+					self.delta_time_array.append(delta_time)
+					self.raw_times_array.append(curr_time.time)
+				self.total_time = delta_time
+
+				self.num_vectors += 1
+
+
+
+
+
+
 
 	def getFeatures(self, exp_weighting=True):
 
