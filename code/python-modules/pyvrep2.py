@@ -92,7 +92,7 @@ def main():
 		percent_complete = evolution.onlineUpdate(new_data,data)
 		if complete: 
 			percent_complete = 100.0
-
+		print 'Percent: ', percent_complete 
 		### define information string
 		#determine the current most likely state
 		if len(evolution.known_tasks[0].curr_labels) > evolution.min_frames_for_probability: 
@@ -108,7 +108,7 @@ def main():
 		curr_label = evolution.known_tasks[task_id].curr_labels[-1]
 
 		information = str(curr_label)+'\t'+str(percent_complete)+'\t'+str(task_id)
-		print 'information: '+information
+		#print 'information: '+information
 		return information, percent_complete
 
 	def processUpdate(): 
@@ -199,9 +199,9 @@ def main():
 		if initialized == False: 
 			#check if full first task complete (VREP will only send first chunk of data with many lines in it)
 			starts_count = genio.linecount(startsfile)		#vrep adds second line to starts file if first task complete
-			print 'curr count: ',count, 'startscount: ', starts_count
+			#print 'curr count: ',count, 'startscount: ', starts_count
 			if starts_count == 2: 	
-				print 'initializing'
+				#print 'initializing'
 				data,task,evolution = initialize(userID) 		
 				initialized = True	
 				#running = False
@@ -216,10 +216,10 @@ def main():
 				information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete) 
 				if percent_complete > percent_complete_threshold: 
 					task_is_complete = True
-				print 'numvectors post update: ', data.num_vectors
+				#print 'numvectors post update: ', data.num_vectors
 				sendTmpResponse(lineshift+information)
 				#running = False
-				if data.num_vectors > 850: 
+				if data.num_vectors > 460: 
 					return data,evolution
 				threepeat = False
 
@@ -231,10 +231,10 @@ def main():
 					genio.shortenfile(tmpfile,lines,2)
 					#task_start = data.num_vectors - len(curr_task_labels) - 1
 					#task_end = data.num_vectors
-					print '\n\nOnlineUpdate:'
+					#print '\n\nOnlineUpdate:'
 					information, percent_complete = onlineUpdate(kNN_number=kNN_number, complete=task_is_complete)	#make sure to send back 100% complete
 					sendTmpResponse(information)
-					print '\n\nTaskUpdate: '
+					#print '\n\nTaskUpdate: '
 					new_information = processUpdate()
 					print '------------------------------------------'
 					#running = False
