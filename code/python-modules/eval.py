@@ -261,6 +261,9 @@ def dealWithEvolution(taskDictUsers,taskDictStarts,userID,task_plan,evolution=No
 			#initialize if first task seen
 			if not initialized: 
 				init_task = process.Task(curr_data_obj, curr_extrema=[begin,end], k=3, basis_dim=2, first_task=True)
+				#a = init_task.printTaskDef()
+				#a = [int(x) for x in a[1]]
+				#print a
 				evolution = process.Process(init_task)
 				user = initializeUser(userID,curr_data_obj,[begin,end])
 				initialized = True
@@ -270,7 +273,6 @@ def dealWithEvolution(taskDictUsers,taskDictStarts,userID,task_plan,evolution=No
 				for data in curr_task_data: 
 					new_features = getNewFeatures(user,data)
 					pct_complete = evolution.onlineUpdate(new_features,user)
-				#print 'pct complete at end: ', pct_complete 
 				evolution.updateKnownTasks(user,compute_type='average')
 
 	return user,evolution,pct_complete
@@ -283,24 +285,43 @@ def runSingleUser(taskDictUsers,taskDictStarts,userID,max_unique=10,max_iters=10
 	pcts_unknown = np.zeros((max_unique,max_iters))
 	update_counts_known = np.zeros((max_unique,max_iters))
 	update_counts_unknown = np.zeros((max_unique,max_iters))
+	std_known = np.zeros((max_unique,max_iters))
+	std_unknown = np.zeros((max_unique,max_iters))
+	meds_known = np.zeros((max_unique,max_iters))
+	meds_unknown = np.zeros((max_unique,max_iters))
 
 	#for 1 to 9 unique tasks to go through
+	all_pcts = {}
+	all_ukpcts = {}
 	for i in np.arange(1,max_unique):
+		all_pcts[i] = {}
+		all_ukpcts[i] = {}
 		#for 1 to 9 iterations of a task to train on 
 		for j in np.arange(1,max_iters): 
+			all_pcts[i][j] = []
+			all_ukpcts[i][j] = []
 			print 'pct k: \n', pcts_known
-			print 'cnt un: \n', update_counts_known
+			print 'cnt k: \n', update_counts_known
 			print 'pct un: \n', pcts_unknown
 			print 'cnt un: \n', update_counts_unknown
+			print 'med k: \n', meds_known
+			print 'med un: \n', meds_unknown
+			print 'std k: \n', std_known
+			print 'std un: \n', std_unknown
 			print '\n\nBegin averaging ----------------------------', i,j
 			#do this for n tries, and average the final results 
 			n = 0
 			pk,puk,ck,cuk = 0,0,0,0
+			all_pk,all_puk = [],[]
 			while n < num_to_average: 
 				n+= 1
+				print '\nn = '+str(n)
 				task_plan = {}
 				#create a task path permutation 
 				full_task_path = np.random.permutation(10)+1
+				#if i>7:
+					#break
+				#full_task_path = np.random.permutation([1,2,3,4,5,6,7,8])
 				
 				#known task_path 
 				#print 'full task path', full_task_path, i, full_task_path[0:i]
@@ -327,8 +348,10 @@ def runSingleUser(taskDictUsers,taskDictStarts,userID,max_unique=10,max_iters=10
 				#print 'Testing ~known~ Task'
 				known_task_plan = {known_task_choice:[known_iter_choice]}
 				user_known, evolution_known, pct_complete = dealWithEvolution(taskDictUsers,taskDictStarts,userID,known_task_plan,evolution=evolution_known,user=user_known)
-				#print 'PCT known: ', pct_complete
-				pk += pct_complete
+				print 'Known Task: '+str(known_task_choice)+'\t PCT known: ', pct_complete
+				all_pk.append(min(pct_complete,100.0))
+				all_pcts[i][j].append(min(pct_complete,100.0))
+				pk += min(pct_complete,100.0)
 				ck += (evolution_known.known_task_count - task_count)
 
 				#select unknown task 
@@ -339,16 +362,28 @@ def runSingleUser(taskDictUsers,taskDictStarts,userID,max_unique=10,max_iters=10
 				#print 'Testing !UNKNOWN! Task'
 				unknown_task_plan = {unknown_task_choice:[unknown_iter_choice]}
 				user_unknown, evolution_unknown, pct_complete = dealWithEvolution(taskDictUsers,taskDictStarts,userID,unknown_task_plan,evolution=evolution_unknown,user=user_unknown)
-				#print 'PCT unknown: ', pct_complete
-				puk += pct_complete 
+				print 'PCT unknown: ', pct_complete
+				all_puk.append(min(pct_complete,100.0))
+				all_ukpcts[i][j].append(min(pct_complete,100.0))
+				puk += min(pct_complete,100.0)
 				cuk += (evolution_unknown.known_task_count - task_count)
 				user_known, user_unknown, evolution_known, evolution_unknown = None, None, None, None
+			
+			#collect avg, std, median values for known and unknown tasks
 			pcts_known[i,j] = pk/float(n)
+			std_known[i,j] = np.std(all_pk)
+			meds_known[i,j] = np.median(all_pk)
+
 			pcts_unknown[i,j] = puk/float(n)
+			std_unknown[i,j] = np.std(all_puk)
+			meds_unknown[i,j] = np.median(all_puk)
+
 			update_counts_known[i,j] = 100*ck/float(n)
 			update_counts_unknown[i,j] = 100*cuk/float(n)
 
-	return pcts_known, pcts_unknown, update_counts_known, update_counts_unknown
+			#print all_pcts[i][j]
+
+	return pcts_known, pcts_unknown, update_counts_known, update_counts_unknown, std_known,std_unknown,meds_known,meds_unknown, all_pcts, all_ukpcts
 
 def testAgainstUsers(taskDictUsers,taskDictStarts,iterations=10,seedint=1):
 	
@@ -405,15 +440,139 @@ def plotAnArray(array_obj):
 		plt.plot(np.arange(array_obj.shape[1]-1),row,marker='o',label='q = '+str(i))
 
 def getWhatIWant(taskDictUsers,taskDictStarts): 
-	pct_known,pct_unknown,c_known,c_unknown = [],[],[],[]
+	pct_known,pct_unknown,c_known,c_unknown,std_known,std_unknown,meds_known,meds_unknown = [],[],[],[],[],[],[],[]
+	all_pcts,all_ukpcts = [],[]
 	for i in np.arange(1,9): 
 		print '\n\nuser ', i
-		np_k, np_uk, nc_k, nc_uk = runSingleUser(taskDictUsers,taskDictStarts,userID=i,max_unique=5,max_iters=7,average_over=12,seedint=1)
+		np_k, np_uk, nc_k, nc_uk, nv_k, nv_uk, nm_k, nm_uk, a_pct, a_ukpct = runSingleUser(taskDictUsers,taskDictStarts,userID=i,max_unique=5,max_iters=5,average_over=30,seedint=1)
 		pct_known.append(np_k)
 		pct_unknown.append(np_uk)
 		c_known.append(nc_k)
 		c_unknown.append(nc_uk)
-	return pct_known,pct_unknown,c_known,c_unknown
+		std_known.append(nv_k)
+		std_unknown.append(nv_uk)
+		meds_known.append(nm_k)
+		meds_unknown.append(nm_uk)
+		all_pcts.append(a_pct)
+		all_ukpcts.append(a_ukpct)
+
+	return pct_known,pct_unknown,c_known,c_unknown,std_known,std_unknown,meds_known,meds_unknown,all_pcts,all_ukpcts
+
+def combineUserPcts(all_pcts): 
+	'''
+	Purpose: 
+	takes the all_pcts output of getWhatIWant(), which looks like [all_pcts(user1), all_pcts(user2), ...] and combines them into a single all_pcts not separated by user. Thus, if an individual user had n=30 examples of pcts and there were 4 users, then the new all_pcts for each datapoint would have 120 examples. 
+
+	Inputs: 
+	all_pcts - k-user length list of all_pcts outputs of runSingleUser()
+	each elements looks like dict[~userid(0 to 7)~] [~uniqueTasks(1 to 4)~] [~iterationsTrained(1 to 4)] and this last dictionary contains a list of percents
+
+	Outputs: 
+	combined_pcts - '''
+	combined = {}	#indexed by q
+	for userid,userdata in enumerate(all_pcts): 
+		#want to take the values for each user and place them together, will be plotting the uniqueTasks as different sets
+		for numuniquetasks, uniquetaskdata in userdata.iteritems(): 
+			#if there was only 1 unique task, then I'd want to grab that data as four points
+			if userid == 0: 
+				combined[numuniquetasks] = {} 
+			for numiterations, iterationsdata in uniquetaskdata.iteritems(): 
+				if userid == 0: 
+					combined[numuniquetasks][numiterations] = iterationsdata	#list
+				else: 
+					combined[numuniquetasks][numiterations] += iterationsdata
+	return combined
+
+def plotCombined(combined,plot_inds=None,linestyle=None,figure=None,success_threshold=80,success_shift_x=1,success_shift_y=-1.33): 
+	'''
+	Purpose: 
+	Plot the 'combined' object returned by combineUserPcts(). 
+
+	Inputs: 
+	combined - dictionary return value of combineUserPcts()
+	plot_inds - only plots inds found in this list, defaults to [1,2,...len(combined[1])]
+	linestyle - linestyle, defaults to '-'
+	figure - figure number, defaults to 1
+	success_threshold - horizontal line placed at this value, defaults to 80
+	success_shift_x - 0-100 input, represents percent-total-visible-x-axis location of 'Success Threshold' text label for the threshold line, defaults to 1
+	success_shift_y - y-axis value at which to place the 'Success Threshold' text
+	'''
+	
+	if plot_inds == None: 
+		plot_inds = range(1,len(combined[1])+1)
+	if linestyle == None: 
+		linestyle = '-'
+	if figure == None: 
+		figure = 1
+
+	import matplotlib.pyplot as plt
+	import matplotlib.lines as mlines
+	import seaborn as sns; sns.set(color_codes=True)
+	sns.set_style('whitegrid')
+	sns.set_context('paper')
+	algae = '#21c36f'
+	twilight = '#0a437a'
+	sunflower = '#ffc512'
+
+	lightblue = '#95d0fc'
+	teal = '#029386'
+	aqua = '#13eac9'
+	darkblue = '#00035b'
+	colors = ['k',darkblue,teal,aqua,lightblue]
+	mline1 = mlines.Line2D([], [], color=colors[1], label='q = 1')
+	mline2 = mlines.Line2D([], [], color=colors[2], label='q = 2')
+	mline3 = mlines.Line2D([], [], color=colors[3], label='q = 3')
+	mline4 = mlines.Line2D([], [], color=colors[4], label='q = 4')
+	all_mlines=[mline1,mline2,mline3,mline4]
+
+	fig = plt.figure(figure)
+	ax = fig.add_subplot(111)
+	data = np.zeros((len(combined[1][1]),len(combined[1])))
+	for q,v in combined.iteritems(): 
+		if q not in plot_inds: 
+			continue
+		#q is number of unique tasks in the test, v contains a dictionary indexed by the number of iterations trained. 
+		for k,r in v.iteritems(): 
+			data[:,k-1] = r 
+		sns.tsplot(data=data,time=range(1,k+1),estimator=np.median,err_style='ci_band',ci=[95],linestyle=linestyle,marker='o',color=colors[q])
+	
+	x_plot_min,x_plot_max = 0.2,k+0.4
+	plt.plot(np.array([0,k+2]),np.ones((2))*success_threshold,'k--')
+	plt.text(x_plot_min+success_shift_x*(x_plot_max-x_plot_min)/100.,success_threshold+success_shift_y,'Success Threshold',fontsize='x-small',fontweight='demibold')
+
+		#mean = np.mean(data,axis=0) 
+		#std = np.std(data,axis=0)
+		#ax.errorbar(range(1,k+1),mean,yerr=std,fmt='none')
+
+
+	plt.xlabel('Number of Iterations Trained (n)')
+	plt.ylabel('Percent Complete Estimate at New Task End (%)')
+	include_handles = [x for i,x in enumerate(all_mlines) if i+1 in plot_inds]
+	plt.legend(handles=include_handles)
+	plt.ylim((60,102))
+	plt.xlim((0.2,4.4))
+	ax.set_xticks(range(1,k+1))
+	return data
+
+
+
+	# for k,v in qbases_k.iteritems(): 
+	# 	sns.tsplot(data=v[:,1:],time=range(1,len(v)),err_style='ci_bars',marker='o',color=colors[k])
+	# for k,v in qbases_uk.iteritems(): 
+	# 	sns.tsplot(data=v[:,1:],time=range(1,len(v)),linestyle='--',err_style='ci_bars',marker='o',color=colors[k])
+	# plt.text(0.72,78,'Known',size=10, style='italic',rotation='vertical')		#0.72,78 - qpcts, 12 cnts
+	# plt.text(0.72,70,'Unknown',size=10, style='italic', rotation='vertical')	#0.72,70 - qpcts, 66 cnts
+	# plt.xlabel('Number of Iterations Trained (n)')
+	# plt.ylabel('Final Percent Complete for Test Iteration (%)')
+	# #plt.ylabel('Probability of Defining New Task Model')
+	# #plt.legend(handles=[mline1,mline2,mline3,mline4], loc='best')
+	# plt.legend(handles=[mline1], loc='best')
+	# plt.ylim((0,100))		#60,95 for qpcts, remove for qcnts
+	# plt.xlim((0.6,4.4))		#0.5,6.5 for qpcts
+	# ax.set_xticks(range(1,len(v)))
+	# plt.show()
+
+
 
 def turnIntoQbase(listofpcts):
 	qpcts= {}
@@ -456,7 +615,7 @@ def plotInterTask(pcts,addrates):
 
 
 def plotQbase(qbases_k, qbases_uk):
-	
+	#http://stackoverflow.com/questions/38385099/adding-simple-error-bars-to-seaborn-factorplot
 	import matplotlib.pyplot as plt
 	import matplotlib.lines as mlines
 	import seaborn as sns; sns.set(color_codes=True)
@@ -476,19 +635,21 @@ def plotQbase(qbases_k, qbases_uk):
 	mline3 = mlines.Line2D([], [], color=colors[3], label='q = 3')
 	mline4 = mlines.Line2D([], [], color=colors[4], label='q = 4')
 
-	ax = plt.subplots()
+	fig, ax = plt.subplots(1,1)
 	for k,v in qbases_k.iteritems(): 
-		sns.tsplot(data=v[:,1:],time=np.arange(1,7),err_style='ci_bars',marker='o',color=colors[k])
+		sns.tsplot(data=v[:,1:],time=range(1,len(v)),err_style='ci_bars',marker='o',color=colors[k])
 	for k,v in qbases_uk.iteritems(): 
-		sns.tsplot(data=v[:,1:],time=np.arange(1,7),linestyle='--',err_style='ci_bars',marker='o',color=colors[k])
+		sns.tsplot(data=v[:,1:],time=range(1,len(v)),linestyle='--',err_style='ci_bars',marker='o',color=colors[k])
 	plt.text(0.72,78,'Known',size=10, style='italic',rotation='vertical')		#0.72,78 - qpcts, 12 cnts
 	plt.text(0.72,70,'Unknown',size=10, style='italic', rotation='vertical')	#0.72,70 - qpcts, 66 cnts
 	plt.xlabel('Number of Iterations Trained (n)')
 	plt.ylabel('Final Percent Complete for Test Iteration (%)')
 	#plt.ylabel('Probability of Defining New Task Model')
-	plt.legend(handles=[mline1,mline2,mline3,mline4], loc='best')
-	plt.ylim((60,95))		#60,95 for qpcts, remove for qcnts
-	plt.xlim((0.5,6.5))		#0.5,6.5 for qpcts
+	#plt.legend(handles=[mline1,mline2,mline3,mline4], loc='best')
+	plt.legend(handles=[mline1], loc='best')
+	plt.ylim((0,100))		#60,95 for qpcts, remove for qcnts
+	plt.xlim((0.6,4.4))		#0.5,6.5 for qpcts
+	ax.set_xticks(range(1,len(v)))
 	plt.show()
 
 #want to turn rows into specific arrays 
@@ -497,6 +658,20 @@ def plotQbase(qbases_k, qbases_uk):
 # 2. define: task_plan = {task1:[iter1,iter2,...],task2:[iter1,iter2], ...}
 # 2. run:	evolution = initializeEvolution(taskDictUsers,taskDictStarts,userID=xxx,task_plan)
 
+'''Process for running an evaluation
+1. define starts and task dicts, midpoint has been determined by sight and with the helper functions in this module
+taskDictUsers,taskDictStarts = defineTaskDicts()
+2a. If you want to do a single user evaluation, run: 
+userID = #choose a number 
+pcts_known,pcts_unknown,update_counts_known,update_counts_unknown = runSingleUser(taskDictUsers,taskDictStarts,userID,max_unique=10,max_iters=10,average_over=50,seedint=21)	#set these defaults appropriately
+### 2a-i if you want to run all single users, (note you will need to change defaults for runSingleUser within this function)
+pct_known,pct_unknown,c_known,c_unknown=getWhatIWant(taskDictUsers,taskDictStarts)
+2b. If you want to compare across users, run: 
+out_pcts, out_add_rate = testAgainstUsers(taskDictUsers,taskDictStarts,iterations=10,seedint=1)
+3a. plot 2a-i: 
+3b. plot 2b: plotInterTask(out_pcts, out_add_rate)
+
+'''
 
 
 # mdpt = np.array([-0.45,0.13, 2.05])

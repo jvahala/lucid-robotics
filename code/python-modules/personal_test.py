@@ -6,6 +6,8 @@ import process
 import matplotlib.pyplot as plt
 from copy import deepcopy
 
+import time
+
 np.set_printoptions(threshold=np.nan,precision=2,suppress=True)
 
 def getFileDict(filepath,txtname,fileDict=None): 
@@ -75,8 +77,7 @@ def getNewFeatures(user,data):
 
 	return new_features
 
-
-def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,numtasks_ordered):
+def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,numtasks_ordered,_plot=True):
 	# go through the ordered taskIDs starting at the relevant starttask number and iterate for the relevant number of tasks
 	'''
 	ie if tasktypes_ordered = [1,3,4], startiter_ordered = [3,1,0], and numtasks_ordered = [4,2,2]: 
@@ -84,6 +85,8 @@ def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,n
 	'''
 	initialized = False		#counter for number of tasks that have so far been completed
 	pct_complete_list = []
+	timings_online = []
+	timings_update = []
 
 
 	for i,tasktype in enumerate(tasktypes_ordered): 
@@ -98,11 +101,12 @@ def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,n
 		iters_left = numtasks_ordered[i]		#number of this tasks iterations left to be completed
 		curr_task_num = 0
 
+		#timing information 
+
 		
 		
 
 		#iterate through the data inds 
-
 		#if no initial task has been completed, complete one and create a Process object
 		if not initialized: 
 			print 'Initializing'
@@ -117,6 +121,7 @@ def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,n
 		# go through each frame in relevant data, if frame number equals 
 		print len(user.data_array)
 		while iters_left > 0: 
+			start = time.clock()
 			#for plotting things on each run through
 			errors_plot_list, error_metric_plot_list, probability_plot_list, pct_plot_list, est_pct_plot_list = [],[],[],[],[]
 			#online process
@@ -127,41 +132,67 @@ def testRun(kinectDict,startsDict,txtnames,tasktypes_ordered,startiter_ordered,n
 				new_features = getNewFeatures(user,data)
 				pct_complete = evolution.onlineUpdate(new_features,user)
 
-				'''interesting plotting stuff'''
-				errors_plot_list.append(deepcopy(evolution.error_per_frame))
-				error_metric_plot_list.append(deepcopy(evolution.error_metric))
-				probability_plot_list.append(deepcopy(evolution.task_online_probability))
-				pct_plot_list.append(deepcopy(evolution.task_pct_complete))
-				est_pct_plot_list.append(pct_complete)
-				'''-------------------------'''
+				#interesting plotting stuff
+				if _plot: 
+					errors_plot_list.append(deepcopy(evolution.error_per_frame))
+					error_metric_plot_list.append(deepcopy(evolution.error_metric))
+					probability_plot_list.append(deepcopy(evolution.task_online_probability))
+					pct_plot_list.append(deepcopy(evolution.task_pct_complete))
+					est_pct_plot_list.append(pct_complete)
+				#-------------------------
+
+			end = time.clock()
+			timings_online.append((end-start)/float(evolution.curr_frame_count))
 
 			errors_per_frame = {}
 			for k,v in evolution.cumulative_online_errors.iteritems():
 				errors_per_frame[k] = max(1,max(1, (v/float(evolution.curr_frame_count))-evolution.known_task_count)*evolution.known_task_count - evolution.known_task_count)
 			
-			'''plot interesting plot stuff'''
+			'''plot interesting plot stuff
+			'''
+			if _plot: 
+				fig = plt.figure()
+				nameit = txtnames[tasktype]
+				plt.suptitle(nameit)
+				plotInformation(fig,errors_plot_list,221,'Error per Frame','Error Value',maxy=104)
+				plotInformation(fig,error_metric_plot_list,222,'Error Metric','Metric Value',maxy=304)
+				plotInformation(fig,probability_plot_list,223,'Task Probabilities','Probability',maxy=1.09)
+				plotInformation(fig,pct_plot_list,224,'Percent Complete','Percent',maxy=109)
+				plotInformation(fig,est_pct_plot_list,224,'Percent Complete','Percent',maxy=109,dict_input=False)
+				fig.tight_layout()
 
-			fig = plt.figure()
-			nameit = txtnames[tasktype]
-			plt.suptitle(nameit)
-			plotInformation(fig,errors_plot_list,221,'Error per Frame','Error Value',maxy=104)
-			plotInformation(fig,error_metric_plot_list,222,'Error Metric','Metric Value',maxy=304)
-			plotInformation(fig,probability_plot_list,223,'Task Probabilities','Probability',maxy=1.09)
-			plotInformation(fig,pct_plot_list,224,'Percent Complete','Percent',maxy=109)
-			plotInformation(fig,est_pct_plot_list,224,'Percent Complete','Percent',maxy=109,dict_input=False)
-			fig.tight_layout()
-
-			''' 						'''
+			
 
 			print '\ntask online probabilities: ', evolution.task_online_probability, '\tonline errors: ', errors_per_frame
 			print evolution.task_pct_complete, 'Probable pct complete: ', pct_complete
 			pct_complete_list.append(pct_complete)
+
+
 			#taskupdate process
-			evolution.updateKnownTasks(user,compute_type='average')
+			start = time.clock()
+			if i >= 1:
+				proper_update = False
+			else: 
+				proper_update = True
+
+			evolution.updateKnownTasks(user,compute_type='average',proper_update=proper_update)
+
+			print 'Task Path: ', evolution.known_tasks[0].path 
+			print 'Task Time: ', evolution.known_tasks[0].times
+			end = time.clock()
+			timings_update.append(end-start)
 			#setup for next task
 			curr_task_num += 1 		#move to next task number (will only compute it if there iters_left > 0, so no worries)
 			iters_left -= 1
 			pct_complete_list = [int(x) for x in pct_complete_list]
+
+	add_timings = list(np.array(timings_online)+np.array(timings_update))
+	print 'online timings (sec per frame): ', timings_online
+	print 'update timings (sec): ', timings_update
+	print 'timings total (sec): ', add_timings
+
+	print 'online Hz: ', [1/x for x in timings_online]
+
 	return pct_complete_list,evolution.task_history,evolution
 
 
@@ -194,15 +225,17 @@ def plotInformation(fig,information,location,title,yaxis,maxy=None,dict_input=Tr
 		ax.set_ylim((0,maxy))
 	return
 	
-def example(kinectDict,startsDict,txtnames): 
+def example(kinectDict,startsDict,txtnames,_plot=True): 
 	import seaborn as sns 
 	sns.set_style('whitegrid')
 	sns.set_context("paper")
 	sns.set_palette(sns.cubehelix_palette(3, start=2, rot=0.45, dark=0.2, light=.8, reverse=True))
-	#types,states,counts = [1,3,8,1,3,8],[2,2,2,4,4,4],[1,1,1,1,1,1]
-	#types,states,counts = [1,7,9,1,7,9],[2,2,2,4,4,4],[1,1,1,1,1,1]
-	types,states,counts = [1,6,9,1,6,9],[1,1,1,2,2,2],[1,1,1,1,1,1]
-	pcts,tasks,evolution=testRun(kinectDict,startsDict,txtnames,types,states,counts)
+	#types,states,counts = [1,3,8,1,3,8],[2,2,2,4,4,4],[1,1,1,2,2,2]
+	types,states,counts = [1,7,9,1,7,9],[2,2,2,4,4,4],[1,1,1,1,1,1]
+	#types,states,counts = [1,6,9,1,6,9],[1,1,1,2,2,2],[1,1,1,1,1,1]
+	#types,states,counts = [1,1,1,1,1],[1,3,5,2,1],[1,3,3,3,3]
+	#types,states,counts = [1,1],[1,2],[1,4]
+	pcts,tasks,evolution=testRun(kinectDict,startsDict,txtnames,types,states,counts,_plot=_plot)
 	return pcts,tasks
 	plt.show()
 

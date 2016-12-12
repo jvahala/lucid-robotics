@@ -126,6 +126,38 @@ def runningAvg(vector,N):
 	'''
 	return np.convolve(vector, np.ones(N,)/(N*1.0))[(N-1):]
 
+def getBackwardsUniqueOrder(iterable,backward=True): 
+	'''
+	Purpose: 
+	Returns the unique 'most recently seen' order of iterables. For example if the iterable is [0,0,1,3,2,0,1,2,2], this function will return [2,1,0,3]. 
+
+	Inputs: 
+	iterable - list or 1D-ndarray with potentially repeated values
+	backward - if set to True, then this will return the unique values starting at index 0 of the iterable instead of index -1
+
+	Outputs: 
+	reverse - list object 
+	'''
+	if backward: 
+		_iterable = iterable[::-1]
+	else:
+		_iterable = iterable 
+	reverse = [y for ind,y in enumerate(_iterable) if y not in _iterable[0:ind]]
+	return reverse
+
+def softmax(x,alpha=-1.0,rescale_=False): 
+	if rescale_: 
+		x_ = rescale(x)
+	else: 
+		x_ = x
+	expx = np.exp(alpha*np.array(x_))		#take exponential of the -x(i) values in x 
+	total = np.sum(expx)	#for use in the denominator
+	return expx/float(total)
+
+def rescale(x,max_=10):
+	x_scaled = [k/400*float(max_) for k in x]
+	return x_scaled
+
 def gaussiansMeet(mu1, std1, mu2, std2): 
 	'''
 	Purpose: 
@@ -564,4 +596,5 @@ def plotFeaturesTogether(data_obj,col,starts,tasknums):
 		print colors[i]
 		plt.plot(np.arange(b-a),data_obj.feat_array[a:b,col],'-',color=colors[i],label='task'+str(t))
 	plt.legend()
+
 
