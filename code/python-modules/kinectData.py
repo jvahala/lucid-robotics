@@ -26,9 +26,9 @@ class kinectData(object):
 	'''
 
 	def __init__(self, ID, header_string=None): 
-		self.ID = ID 					#user ID number ('0' is first person, '1' is second, etc)
+		self.ID = ID 					#string user ID number ('0' is first person, '1' is second, etc)
 		self.names_list = []				#list object of the names of the features of data_array
-		if header_line != None: 
+		if header_string != None: 
 			self.processLine(header_string,header_line=True)	#if a string with the header is input to the kinectData object, initialize the names list
 		self.names_base = []			#base names of the name list (ie ShoulderLeft instead of ShoulderLeft.X)
 		self.data_array = []			#m by n rows represent different timestamps, columns represent raw data elements from names_list
@@ -85,7 +85,7 @@ class kinectData(object):
 				_header = True
 				## begin looking at each line
 				for line in f:
-					processLine(line,header_line=_header)
+					self.processLine(line,header_line=_header)
 					_header = False
 
 		print ' Data added.\n'
@@ -118,7 +118,7 @@ class kinectData(object):
 					pass
 				# userID
 				elif word_index == 3: 
-					if word != self.userID: 
+					if word != self.ID: 
 						break
 				# data: 
 				elif (word_index >= 4) and (word != 'Tracked') and (word != 'Inferred'):
@@ -130,7 +130,7 @@ class kinectData(object):
 				if len(self.data_array) == 0: 
 					self.data_array = np.array(_data)
 				else: 
-					self.data_array = np.vstack((self.data_Array,_data))
+					self.data_array = np.vstack((self.data_array,_data))
 					self.delta_time_array.append(delta_time)
 					self.raw_times_array.append(curr_time.time)
 				self.total_time = delta_time
