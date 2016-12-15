@@ -126,6 +126,23 @@ def runningAvg(vector,N):
 	'''
 	return np.convolve(vector, np.ones(N,)/(N*1.0))[(N-1):]
 
+def numOutsideBounds(_input,bounds): 
+	'''
+	Purpose: 
+	given an input vector of length n and bounds = [lower,upper] each of length n (for each element in the input vector), return the number of elements of the input that are not within the lower and upper bounds
+
+	Inputs: 
+	_input - n-length ndarray
+	bounds - list of [lower,upper] where lower and upper are each n-length ndarray objects representing the lower and upper bounds that the input should satisfy
+
+	Outputs: 
+	num_outside_bounds - integer number of elements of the _input that fell outside of the bounds
+	'''
+	num_below_lower_bound = np.sum(_input<bounds[0])
+	num_above_upper_bound = np.sum(_input>bounds[1])
+	num_outside_bounds = num_below_lower_bound+num_above_upper_bound
+	return num_outside_bounds
+
 def getBackwardsUniqueOrder(iterable,backward=True): 
 	'''
 	Purpose: 

@@ -76,7 +76,7 @@ class kinectData(object):
 			_header = False
 			if len(self.names_list) == 0: 
 				_header = True
-			processLine(data_line,header_line=_header)
+			self.processLine(data_line,header_line=_header)
 
 		else: 
 			print 'Adding new data from', filename, '...'
